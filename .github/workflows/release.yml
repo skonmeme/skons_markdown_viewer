@@ -1,0 +1,44 @@
+# Publishes a release when a pull request is merged into main (STANDARD §11.4).
+name: Release
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: macos-26
+    env:
+      MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.MERGE_SHA }}
+
+      - name: Check the version
+        run: |
+          version="$(cargo xtask version)"
+          if gh release view "v$version" >/dev/null 2>&1; then
+            echo "::error::Release v$version already exists. Raise the version in Cargo.toml."
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Test
+        run: cargo test --workspace
+
+      - name: Build the packages
+        run: cargo xtask dist
+
+      - name: Publish the release
+        run: |
+          gh release create "v$VERSION" target/dist/*.pkg \
+            --target "$MERGE_SHA" \
+            --title "skon's Markdown Viewer $VERSION" \
+            --generate-notes

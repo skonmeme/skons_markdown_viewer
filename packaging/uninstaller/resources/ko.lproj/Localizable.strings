@@ -1,0 +1,5 @@
+"UNINSTALLER_TITLE" = "skon's Markdown Viewer 제거";
+"APP_TITLE" = "앱 제거";
+"APP_DESCRIPTION" = "실행 중인 앱을 종료하고 /Applications/skons_markdown_viewer.app을 삭제합니다.";
+"USERDATA_TITLE" = "현재 사용자의 설정 제거";
+"USERDATA_DESCRIPTION" = "제거 프로그램을 실행한 사용자의 설정, 캐시, 최근 문서 목록을 삭제합니다.";

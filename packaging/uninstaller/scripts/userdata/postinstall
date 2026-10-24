@@ -1,0 +1,30 @@
+#!/bin/sh
+# Deletes the settings and caches of the user who runs the uninstaller
+# (STANDARD §10). Runs as root.
+
+ID="skons_markdown_viewer"
+USER_NAME=$(/usr/bin/stat -f %Su /dev/console)
+if [ -z "$USER_NAME" ] || [ "$USER_NAME" = "root" ]; then
+    exit 0
+fi
+HOME_DIR=$(/usr/bin/dscl . -read "/Users/$USER_NAME" NFSHomeDirectory 2>/dev/null | /usr/bin/awk '{ print $2 }')
+if [ ! -d "$HOME_DIR" ]; then
+    exit 0
+fi
+
+# Drop the preferences cached by cfprefsd before deleting the file.
+/usr/bin/sudo -u "$USER_NAME" /usr/bin/defaults delete "$ID" >/dev/null 2>&1
+
+LIBRARY="$HOME_DIR/Library"
+for path in \
+    "$LIBRARY/Preferences/$ID.plist" \
+    "$LIBRARY/Caches/$ID" \
+    "$LIBRARY/HTTPStorages/$ID" \
+    "$LIBRARY/HTTPStorages/$ID.binarycookies" \
+    "$LIBRARY/WebKit/$ID" \
+    "$LIBRARY/Saved Application State/$ID.savedState" \
+    "$LIBRARY/Application Support/com.apple.sharedfilelist/com.apple.LSSharedFileList.ApplicationRecentDocuments/$ID".sfl*
+do
+    /bin/rm -rf "$path"
+done
+exit 0
