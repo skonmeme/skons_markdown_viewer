@@ -1,9 +1,5 @@
 # Initial specification
 
-- Requested: 2026-10-24
-- Requester: Sung Gon Yi (skon)
-- Branch: `spec/20261024-initial-spec`
-
 ## Request
 
 > The original request below is written in Korean and is kept verbatim; only its headings are nested under this section.
