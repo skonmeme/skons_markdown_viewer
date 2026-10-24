@@ -6,13 +6,14 @@
 
 ## Request
 
-> The original request below is written in Korean and is kept verbatim.
+> The original request below is written in Korean and is kept verbatim; only its headings are nested under this section.
 
 맥용 Markdown Viewer를 만들려고 해.
 
 ### 이름
 skon's Markdown Viewer (skon은 소문자)
 - 번들 파일명과 ID는 skons_markdown_viewer
+- 
 
 ### 대상 환경
 macOS 26 이상, Apple Silicon 전용
@@ -42,7 +43,7 @@ spec/STANDARD.md: 프로젝트에서 정한 모든 스펙을 적어둔 문서
 README.md: 사용 설명용 문서. 한글로 작성. 간결하게 설치 및 사용법 설명
 
 doc/DEVELOPMENT/ : 개발 과정에 필요한 논의사항. 파일별로 관리되며 해소되면 삭제
-doc/ARCHITECTURE.md : 앱의 작동 방식에 대해 상세히 설명. 그림과 동영상도 첨부하고 보충파일들은 doc/ARCHITECTURE/에 저장
+doc/ARCHITECTURE.md : 앱의 작동 방식에 대해 상세히 설명. 그림과 동영상도 첨부하고 보충파이들은 doc/ARCHITECTURE/에 저장
 doc/ 문서들은 특별한 이유가 없는 이상 한글로 작성
 
 ### 배포
