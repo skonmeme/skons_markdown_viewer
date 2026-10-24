@@ -1,0 +1,3 @@
+/* Shown by Finder, Launchpad and Spotlight instead of the bundle file name. */
+CFBundleDisplayName = "skon's Markdown Viewer";
+CFBundleName = "skon's Markdown Viewer";
