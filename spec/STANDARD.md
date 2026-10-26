@@ -190,6 +190,7 @@ The app is written in Rust. Swift may be used together with Rust only where it i
 | `spec/STANDARD/` | Supplementary files of this specification | English |
 | `spec/requests/` | Specification requests that have not been applied yet | Any |
 | `spec/merged/` | Applied specification requests | Any |
+| `CLAUDE.md` | Instructions that Claude reads at the start of every session; it repeats §11.3 so that Claude always follows it | English |
 | `README.md` | Concise installation and usage guide | Korean |
 | `doc/ARCHITECTURE.md` | Detailed explanation of how the app works, with figures and videos; supplementary files are kept in `doc/ARCHITECTURE/` | Korean |
 | `doc/DEVELOPMENT/` | Topics to discuss during development, one file per topic; a file is deleted when its topic is resolved | Korean |
@@ -200,11 +201,57 @@ Documents in `doc/` are written in Korean unless there is a particular reason no
 
 ![Figure 4. Development and release flow](STANDARD/process.svg)
 
-1. This document is updated only through specification requests, which are written in `spec/requests/`.
-2. No work is done on the `main` and `develop` branches. Work is always done on the branch where the specification request is committed.
-3. While this document is updated, the source code is created or changed so that it matches this document.
-4. After this document has been updated, the specification request is moved to `spec/merged/`.
-5. If no problem occurs during the process, the changes are committed automatically on the working branch.
+This document is changed only through specification requests. The requester asks for changes and makes the decisions; Claude carries out the four steps below (Figure 4). `CLAUDE.md` repeats this section so that Claude always knows it (§11.2); if the two differ, this document is correct. No work is done on the `main` and `develop` branches; all work for a request is done on the branch that holds the request.
+
+**Step 1. Managing a specification request**
+
+1. When the requester asks for a request, Claude creates `spec/requests/NNN-title.md` on the branch that is currently checked out. `NNN` is the next three-digit number across `spec/requests/` and `spec/merged/`, and `title` is a short English name.
+2. Claude never creates branches. If the current branch is `main` or `develop`, Claude does not create the request and asks the requester to change the branch.
+3. A branch may hold several requests when needed.
+4. A request has these sections:
+
+| Section | Content |
+|---|---|
+| Request | The requester's original request, verbatim |
+| Decisions | For each decision: its content (concrete values, formulas, behavior), its source (the requester's words, verbatim) and its reason. A proposal by Claude that the requester has not explicitly approved is marked as such. |
+| Resulting specification | What this document will contain as a result of the decisions |
+| Impact | Changes visible to users, and the sections and figures of this document, source code, tests and documents that change |
+| Open questions | Points that have not been decided yet |
+
+5. Whenever a decision is made or changed in the conversation, Claude updates the request at once. Decisions, calculated results and proposals are never kept only in the conversation. When a decision changes, the earlier statement stays and the new one is added.
+6. A request is committed only when the requester says so, or at the start of step 2.
+
+**Step 2. Updating this document**
+
+1. Claude updates this document only when the requester explicitly instructs it. If the request still has open questions, Claude asks the requester first.
+2. If the request has uncommitted changes, Claude commits the request first. The instruction to update this document also counts as the instruction to commit the request.
+3. Every decision of the request is reflected, and nothing unrelated to the decisions is changed.
+4. This document is written in English, and its figures in `spec/STANDARD/` are changed to match.
+5. If a decision conflicts with another part of this document, Claude stops and asks the requester.
+
+**Step 3. Implementation and follow-up work**
+
+1. Step 3 may start right after the update of this document has been committed. Steps 2 and 3 are never done at the same time.
+2. The source code and tests are always made to match this document. If the implementation turns out to need a change of this document, Claude asks the requester and continues only after the answer.
+3. `cargo test --workspace` must pass.
+4. The documents are brought in line with this document: `README.md`, `doc/ARCHITECTURE.md` and `doc/ARCHITECTURE/`, `doc/DEVELOPMENT/` (a topic to discuss is added, and a resolved topic is deleted), the Help (`packaging/help/`), and `CLAUDE.md` when this section changes.
+5. When everything is done, the request is moved to `spec/merged/`.
+
+**Step 4. Commits**
+
+1. A request is committed only as described in step 1.
+2. The results of steps 2 and 3 are committed automatically on the working branch if no problem occurs. The commit of step 2 is made before step 3 starts. If the build or a test fails, or a conflict within this document appears, nothing is committed and the requester is told.
+3. Commits are made only on the working branch. Pushing, merging into `develop` and pull requests to `main` happen only when the requester instructs them (§11.4).
+4. Commit messages have this form:
+
+| Work | Commit message |
+|---|---|
+| Adding a request | `spec: add request NNN-title` |
+| Updating a request | `spec: <change> to request NNN-title`, for example `spec: add decisions to request 002-package` |
+| Updating this document | `spec: update STANDARD.md from request NNN-title` |
+| Implementation | `Implement STANDARD from request NNN-title` |
+| Documents | `docs: <change>` |
+| Moving a request | `spec: move request NNN-title to merged` |
 
 ### 11.4 Branches and releases
 

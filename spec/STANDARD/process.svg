@@ -1,68 +1,72 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 350" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 360" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M0,0 L10,5 L0,10 z" fill="#57606a"/>
     </marker>
   </defs>
-  <rect width="860" height="350" fill="#ffffff"/>
+  <rect width="860" height="360" fill="#ffffff"/>
 
   <!-- lanes -->
-  <rect x="10" y="30" width="840" height="110" rx="8" fill="#f6f8fa"/>
-  <rect x="10" y="152" width="840" height="74" rx="8" fill="#f6f8fa"/>
-  <rect x="10" y="238" width="840" height="74" rx="8" fill="#f6f8fa"/>
+  <rect x="10" y="30" width="840" height="120" rx="8" fill="#f6f8fa"/>
+  <rect x="10" y="162" width="840" height="74" rx="8" fill="#f6f8fa"/>
+  <rect x="10" y="248" width="840" height="74" rx="8" fill="#f6f8fa"/>
   <g font-weight="600" fill="#57606a">
     <text x="24" y="54">Working branch</text>
-    <text x="24" y="176">develop</text>
-    <text x="24" y="262">main</text>
+    <text x="24" y="186">develop</text>
+    <text x="24" y="272">main</text>
   </g>
 
-  <!-- working branch steps -->
+  <!-- working branch steps (§11.3) -->
   <g fill="#ffffff" stroke="#0969da" stroke-width="1.5">
-    <rect x="140" y="62" width="165" height="56" rx="8"/>
-    <rect x="321" y="62" width="165" height="56" rx="8"/>
-    <rect x="502" y="62" width="165" height="56" rx="8"/>
-    <rect x="683" y="62" width="165" height="56" rx="8"/>
+    <rect x="130" y="62" width="165" height="64" rx="8"/>
+    <rect x="310" y="62" width="165" height="64" rx="8"/>
+    <rect x="490" y="62" width="165" height="64" rx="8"/>
+    <rect x="670" y="62" width="165" height="64" rx="8"/>
   </g>
   <g text-anchor="middle">
-    <text x="222.5" y="86" font-weight="600">1. Commit the request</text>
-    <text x="222.5" y="104">in spec/requests/</text>
-    <text x="403.5" y="86" font-weight="600">2. Update STANDARD.md</text>
-    <text x="403.5" y="104">and the source code</text>
-    <text x="584.5" y="86" font-weight="600">3. Move the request</text>
-    <text x="584.5" y="104">to spec/merged/</text>
-    <text x="765.5" y="86" font-weight="600">4. Commit automatically</text>
-    <text x="765.5" y="104">if no problem occurs</text>
+    <text x="212.5" y="81" font-weight="600">1. Manage the request</text>
+    <text x="212.5" y="98">in spec/requests/</text>
+    <text x="212.5" y="115">commit on instruction</text>
+    <text x="392.5" y="81" font-weight="600">2. Update STANDARD.md</text>
+    <text x="392.5" y="98">on explicit instruction</text>
+    <text x="392.5" y="115">commit before step 3</text>
+    <text x="572.5" y="81" font-weight="600">3. Implement, follow up</text>
+    <text x="572.5" y="98">code, tests, documents</text>
+    <text x="572.5" y="115">move request to merged</text>
+    <text x="752.5" y="81" font-weight="600">4. Commit automatically</text>
+    <text x="752.5" y="98">steps 2 and 3,</text>
+    <text x="752.5" y="115">if no problem occurs</text>
   </g>
 
   <!-- develop: development and local test -->
   <g fill="#ffffff" stroke="#57606a" stroke-width="1.5">
-    <rect x="300" y="168" width="160" height="42" rx="8"/>
-    <rect x="500" y="164" width="250" height="50" rx="8"/>
+    <rect x="300" y="178" width="160" height="42" rx="8"/>
+    <rect x="500" y="174" width="250" height="50" rx="8"/>
   </g>
-  <text x="380" y="194" text-anchor="middle" font-weight="600">Development</text>
-  <text x="625" y="184" text-anchor="middle" font-weight="600">Local test of signed, notarized pkgs</text>
-  <text x="625" y="202" text-anchor="middle">install, test, uninstall</text>
+  <text x="380" y="204" text-anchor="middle" font-weight="600">Development</text>
+  <text x="625" y="194" text-anchor="middle" font-weight="600">Local test of signed, notarized pkgs</text>
+  <text x="625" y="212" text-anchor="middle">install, test, uninstall</text>
 
   <!-- main: workflow and release -->
-  <rect x="440" y="250" width="220" height="42" rx="8" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
-  <text x="550" y="268" text-anchor="middle" font-weight="600">GitHub workflow</text>
-  <text x="550" y="284" text-anchor="middle">build, sign, notarize</text>
-  <rect x="683" y="250" width="165" height="42" rx="8" fill="#dafbe1" stroke="#1a7f37" stroke-width="1.5"/>
-  <text x="765.5" y="268" text-anchor="middle" font-weight="600">Release</text>
-  <text x="765.5" y="284" text-anchor="middle">installer + uninstaller .pkg</text>
+  <rect x="440" y="260" width="220" height="42" rx="8" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+  <text x="550" y="278" text-anchor="middle" font-weight="600">GitHub workflow</text>
+  <text x="550" y="294" text-anchor="middle">build, sign, notarize</text>
+  <rect x="683" y="260" width="165" height="42" rx="8" fill="#dafbe1" stroke="#1a7f37" stroke-width="1.5"/>
+  <text x="765.5" y="278" text-anchor="middle" font-weight="600">Release</text>
+  <text x="765.5" y="294" text-anchor="middle">installer + uninstaller .pkg</text>
 
   <!-- arrows -->
   <g stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arrow)">
-    <line x1="305" y1="90" x2="319" y2="90"/>
-    <line x1="486" y1="90" x2="500" y2="90"/>
-    <line x1="667" y1="90" x2="681" y2="90"/>
-    <path d="M765.5,118 V132 C765.5,150 470,140 400,166"/>
-    <line x1="460" y1="189" x2="498" y2="189"/>
-    <line x1="580" y1="214" x2="565" y2="248"/>
-    <line x1="660" y1="271" x2="681" y2="271"/>
+    <line x1="295" y1="94" x2="308" y2="94"/>
+    <line x1="475" y1="94" x2="488" y2="94"/>
+    <line x1="655" y1="94" x2="668" y2="94"/>
+    <path d="M752.5,126 V140 C752.5,158 470,150 400,176"/>
+    <line x1="460" y1="199" x2="498" y2="199"/>
+    <line x1="580" y1="224" x2="565" y2="258"/>
+    <line x1="660" y1="281" x2="681" y2="281"/>
   </g>
-  <text x="560" y="140" fill="#57606a">merge</text>
-  <text x="586" y="236" fill="#57606a">pull request merged</text>
+  <text x="480" y="147" fill="#57606a">merge on instruction</text>
+  <text x="586" y="246" fill="#57606a">pull request merged</text>
 
-  <text x="140" y="334" fill="#cf222e">No work is done directly on develop or main.</text>
+  <text x="130" y="344" fill="#cf222e">No work is done directly on develop or main.</text>
 </svg>
