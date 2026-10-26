@@ -202,10 +202,10 @@ WebKit의 웹 콘텐츠 프로세스는 샌드박스 안에서 돌아서 로컬 
 
 ### 로컬 테스트 (배포 전)
 
-공증 자격 증명은 처음 한 번 키체인에 저장합니다.
+공증 자격 증명은 처음 한 번 키체인에 저장합니다. 프로필 이름은 `skon's Universe`입니다(키체인 항목 `com.apple.gke.notary.tool.saved-creds.skon's Universe`).
 
 ```sh
-xcrun notarytool store-credentials skon-notary \
+xcrun notarytool store-credentials "skon's Universe" \
   --key <AuthKey_XXXX.p8> --key-id <Key ID> --issuer <Issuer ID>
 ```
 
@@ -214,7 +214,7 @@ xcrun notarytool store-credentials skon-notary \
 ```sh
 export SMV_SIGN_APP_IDENTITY="Developer ID Application: <이름> (<팀 ID>)"
 export SMV_SIGN_PKG_IDENTITY="Developer ID Installer: <이름> (<팀 ID>)"
-export SMV_NOTARY_PROFILE=skon-notary
+export SMV_NOTARY_PROFILE="skon's Universe"
 cargo xtask dist && cargo xtask notarize
 spctl --assess --type install --verbose target/dist/MarkdownViewer-*.pkg
 ```
