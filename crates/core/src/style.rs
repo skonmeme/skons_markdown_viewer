@@ -7,11 +7,19 @@ use crate::highlight::{Theme, theme_css};
 use crate::settings::{ColorMode, FontSet, MarginMode, Settings};
 
 /// Smallest automatic margin, in CSS pixels.
-pub const AUTO_MARGIN_MIN: f64 = 16.0;
+pub const AUTO_MARGIN_MIN: f64 = 8.0;
 /// Viewport width up to which the automatic margin stays at its minimum.
-pub const AUTO_MARGIN_THRESHOLD: f64 = 560.0;
-/// Share of the width beyond the threshold that is added to each margin.
-pub const AUTO_MARGIN_RATIO: f64 = 0.35;
+pub const AUTO_MARGIN_THRESHOLD: f64 = 480.0;
+/// Viewport width from which both automatic margins together take
+/// [`AUTO_MARGIN_SHARE`] of the width.
+pub const AUTO_MARGIN_SHARE_WIDTH: f64 = 1920.0;
+/// Share of the width taken by both automatic margins together from
+/// [`AUTO_MARGIN_SHARE_WIDTH`] on.
+pub const AUTO_MARGIN_SHARE: f64 = 0.15;
+/// Margin gained between the threshold and [`AUTO_MARGIN_SHARE_WIDTH`].
+const AUTO_MARGIN_RISE: f64 = AUTO_MARGIN_SHARE_WIDTH * AUTO_MARGIN_SHARE / 2.0 - AUTO_MARGIN_MIN;
+/// Width over which [`AUTO_MARGIN_RISE`] is gained.
+const AUTO_MARGIN_RUN: f64 = AUTO_MARGIN_SHARE_WIDTH - AUTO_MARGIN_THRESHOLD;
 /// A fixed margin never exceeds this share of the viewport width.
 pub const FIXED_MARGIN_MAX_RATIO: f64 = 0.25;
 
@@ -38,9 +46,13 @@ pub struct FontFace {
 }
 
 /// Automatic margin for a viewport of `width` CSS pixels:
-/// `max(16, 16 + 0.35 × (width − 560))`.
+/// `max(8, min(8 + 136 × (width − 480) / 1440, 0.075 × width))`.
 pub fn automatic_margin(width: f64) -> f64 {
-    (AUTO_MARGIN_MIN + AUTO_MARGIN_RATIO * (width - AUTO_MARGIN_THRESHOLD)).max(AUTO_MARGIN_MIN)
+    let linear =
+        AUTO_MARGIN_MIN + (width - AUTO_MARGIN_THRESHOLD) * AUTO_MARGIN_RISE / AUTO_MARGIN_RUN;
+    linear
+        .min(width * AUTO_MARGIN_SHARE / 2.0)
+        .max(AUTO_MARGIN_MIN)
 }
 
 /// Builds the stylesheet that applies `settings` on top of the base
@@ -130,7 +142,8 @@ pub fn user_stylesheet(settings: &Settings, korean_faces: &[FontFace]) -> String
 fn margin_value(settings: &Settings) -> String {
     match settings.margin_mode {
         MarginMode::Automatic => format!(
-            "max({AUTO_MARGIN_MIN}px, calc({AUTO_MARGIN_MIN}px + (100vw - {AUTO_MARGIN_THRESHOLD}px) * {AUTO_MARGIN_RATIO}))"
+            "max({AUTO_MARGIN_MIN}px, min({AUTO_MARGIN_MIN}px + (100vw - {AUTO_MARGIN_THRESHOLD}px) * {AUTO_MARGIN_RISE} / {AUTO_MARGIN_RUN}, {}vw))",
+            AUTO_MARGIN_SHARE / 2.0 * 100.0
         ),
         MarginMode::Fixed => format!(
             "min({}px, {}vw)",
@@ -253,10 +266,11 @@ mod tests {
 
     #[test]
     fn automatic_margin_formula() {
-        assert_eq!(automatic_margin(400.0), 16.0);
-        assert_eq!(automatic_margin(560.0), 16.0);
-        assert_eq!(automatic_margin(1000.0), 170.0);
-        assert!((automatic_margin(1440.0) - 324.0).abs() < 1e-9);
+        assert_eq!(automatic_margin(400.0), 8.0);
+        assert_eq!(automatic_margin(480.0), 8.0);
+        assert_eq!(automatic_margin(1200.0), 76.0);
+        assert_eq!(automatic_margin(1920.0), 144.0);
+        assert_eq!(automatic_margin(2560.0), 192.0);
     }
 
     #[test]
@@ -279,7 +293,9 @@ mod tests {
         ));
         assert!(css.contains("--smv-font-size: 16px;"));
         assert!(css.contains("--smv-line-height: 1.6;"));
-        assert!(css.contains("--smv-margin: max(16px, calc(16px + (100vw - 560px) * 0.35));"));
+        assert!(
+            css.contains("--smv-margin: max(8px, min(8px + (100vw - 480px) * 136 / 1440, 7.5vw));")
+        );
         assert!(css.contains("light-dark(#1f2328, #e6e6e6)"));
         assert!(css.contains("@media print, (prefers-color-scheme: light) {"));
         assert!(css.contains("@media screen and (prefers-color-scheme: dark) {"));

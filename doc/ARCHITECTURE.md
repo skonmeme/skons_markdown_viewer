@@ -135,7 +135,7 @@ WebKit의 웹 콘텐츠 프로세스는 샌드박스 안에서 돌아서 로컬 
 - 코드 하이라이트 테마는 라이트(GitHub)와 다크(OneHalfDark) 중 하나만 적용되도록 미디어 쿼리로 나눕니다. 인쇄할 때는 항상 라이트 테마입니다.
 
 **여백**
-- 자동 여백은 CSS 계산식 `max(16px, calc(16px + (100vw - 560px) * 0.35))`입니다. 창 크기를 바꾸는 동안에도 WebKit이 바로 다시 계산합니다.
+- 자동 여백은 CSS 계산식 `max(8px, min(8px + (100vw - 480px) * 136 / 1440, 7.5vw))`입니다. 창 크기를 바꾸는 동안에도 WebKit이 바로 다시 계산합니다.
 - 고정 여백은 `min(값px, 25vw)`로, 페이지 폭의 25 %를 넘지 않습니다.
 - 메뉴의 여백 늘리기·줄이기는 현재 보이는 여백(점 단위로 반올림)에서 16 pt씩 더하거나 뺍니다.
 
@@ -202,10 +202,10 @@ WebKit의 웹 콘텐츠 프로세스는 샌드박스 안에서 돌아서 로컬 
 
 ### 로컬 테스트 (배포 전)
 
-공증 자격 증명은 처음 한 번 키체인에 저장합니다.
+공증 자격 증명은 처음 한 번 키체인에 저장합니다. 프로필 이름은 `skon's Universe`입니다(키체인 항목 `com.apple.gke.notary.tool.saved-creds.skon's Universe`).
 
 ```sh
-xcrun notarytool store-credentials skon-notary \
+xcrun notarytool store-credentials "skon's Universe" \
   --key <AuthKey_XXXX.p8> --key-id <Key ID> --issuer <Issuer ID>
 ```
 
@@ -214,7 +214,7 @@ xcrun notarytool store-credentials skon-notary \
 ```sh
 export SMV_SIGN_APP_IDENTITY="Developer ID Application: <이름> (<팀 ID>)"
 export SMV_SIGN_PKG_IDENTITY="Developer ID Installer: <이름> (<팀 ID>)"
-export SMV_NOTARY_PROFILE=skon-notary
+export SMV_NOTARY_PROFILE="skon's Universe"
 cargo xtask dist && cargo xtask notarize
 spctl --assess --type install --verbose target/dist/MarkdownViewer-*.pkg
 ```
@@ -243,11 +243,10 @@ Secrets가 하나라도 없으면 처음 단계에서 실패합니다. 서명·�
 
 ## 15. 개발 절차와 테스트
 
-- 명세 변경은 명세 요청서로만 합니다(명세 §11.3).
-  1. 요청서를 작업 브랜치에 커밋합니다.
-  2. STANDARD를 갱신합니다.
-  3. 코드를 맞춥니다.
-  4. 요청서를 `spec/merged/`로 옮깁니다.
-  5. 커밋합니다.
+- 명세 변경은 명세 요청서로만 합니다. 절차는 명세 §11.3이 정하며, Claude가 늘 따르도록 `CLAUDE.md`에도 같은 내용이 있습니다.
+  1. 요청서 관리: 요청이 있으면 `spec/requests/`에 요청서를 만들고, 결정이 나올 때마다 내용·근거·영향을 적습니다. 요청서는 요청자가 지시할 때만 커밋합니다.
+  2. STANDARD 갱신: 요청자가 명확히 지시할 때만 합니다. 커밋하지 않은 요청서가 있으면 먼저 커밋합니다.
+  3. 구현 및 후속 작업: STANDARD 갱신을 커밋한 뒤 코드·테스트·문서를 STANDARD에 맞추고, 요청서를 `spec/merged/`로 옮깁니다.
+  4. 커밋: 2·3단계의 결과는 문제가 없으면 작업 브랜치에 자동으로 커밋합니다.
 - `main`, `develop`에서는 직접 작업하지 않습니다.
 - `cargo test --workspace`가 smv-core의 렌더링·설정·CSS 생성과 Help 언어 선택을 검사합니다. AppKit 화면 동작은 단위 테스트 대상이 아닙니다.
