@@ -530,12 +530,12 @@ mod tests {
     #[test]
     fn margin_steps_start_from_effective_margin() {
         let mut settings = Settings::default();
-        // The automatic margin at 1000 pt is 16 + 0.35 × 440 = 170.
+        // The automatic margin at 1000 pt is 8 + 136 × 520 / 1440 ≈ 57.1, shown as 57.
         settings.step_margin(1000.0, 1);
         assert_eq!(settings.margin_mode, MarginMode::Fixed);
-        assert_eq!(settings.fixed_margin, 186.0);
+        assert_eq!(settings.fixed_margin, 73.0);
         settings.step_margin(1000.0, -2);
-        assert_eq!(settings.fixed_margin, 154.0);
+        assert_eq!(settings.fixed_margin, 41.0);
         // A fixed margin above 25 % of the width starts from the capped value.
         settings.fixed_margin = 300.0;
         settings.step_margin(800.0, 1);
