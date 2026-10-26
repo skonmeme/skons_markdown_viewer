@@ -13,13 +13,8 @@ use crate::util::ns;
 /// `NSUserDefaults` key holding the settings as JSON.
 const DEFAULTS_KEY: &str = "Settings";
 
-/// Developer override: settings JSON that is used instead of the stored
-/// settings and never written back.
-const OVERRIDE_ENV: &str = "SMV_SETTINGS_JSON";
-
 struct Store {
     settings: Settings,
-    persistent: bool,
 }
 
 thread_local! {
@@ -31,18 +26,11 @@ fn with_store<R>(body: impl FnOnce(&mut Store) -> R) -> R {
 }
 
 fn load() -> Store {
-    if let Ok(json) = std::env::var(OVERRIDE_ENV) {
-        return Store {
-            settings: Settings::from_json(&json),
-            persistent: false,
-        };
-    }
     let json = NSUserDefaults::standardUserDefaults().stringForKey(&ns(DEFAULTS_KEY));
     Store {
         settings: json
             .map(|json| Settings::from_json(&json.to_string()))
             .unwrap_or_default(),
-        persistent: true,
     }
 }
 
@@ -65,9 +53,7 @@ pub fn update(mtm: MainThreadMarker, change: impl FnOnce(&mut Settings)) {
         if store.settings == before {
             return false;
         }
-        if store.persistent {
-            save(&store.settings);
-        }
+        save(&store.settings);
         true
     });
     if changed {

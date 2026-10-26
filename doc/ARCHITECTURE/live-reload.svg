@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 300" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#57606a"/>
+    </marker>
+  </defs>
+  <rect width="900" height="300" fill="#ffffff"/>
+
+  <g fill="#ffffff" stroke-width="1.4">
+    <rect x="20" y="30" width="150" height="64" rx="8" stroke="#57606a"/>
+    <rect x="200" y="30" width="160" height="64" rx="8" stroke="#0969da"/>
+    <rect x="390" y="30" width="150" height="64" rx="8" stroke="#0969da"/>
+    <rect x="570" y="30" width="150" height="64" rx="8" stroke="#0969da"/>
+    <rect x="750" y="30" width="130" height="64" rx="8" stroke="#0969da"/>
+    <rect x="570" y="170" width="150" height="64" rx="8" stroke="#1a7f37"/>
+    <rect x="300" y="170" width="240" height="64" rx="8" stroke="#8250df"/>
+    <rect x="20" y="170" width="250" height="64" rx="8" stroke="#8250df"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="95" y="56" font-weight="600">Editor saves</text>
+    <text x="95" y="74">write or replace file</text>
+    <text x="280" y="56" font-weight="600">FileWatcher (notify)</text>
+    <text x="280" y="74">FSEvents on the folder</text>
+    <text x="465" y="56" font-weight="600">main queue</text>
+    <text x="465" y="74">debounce 100 ms</text>
+    <text x="645" y="56" font-weight="600">reload_from_disk</text>
+    <text x="645" y="74">mtime + size changed?</text>
+    <text x="815" y="56" font-weight="600">set_source</text>
+    <text x="815" y="74">text differs?</text>
+    <text x="645" y="196" font-weight="600">markdown::render</text>
+    <text x="645" y="214">new HTML fragment</text>
+    <text x="420" y="196" font-weight="600">smv.update(html)</text>
+    <text x="420" y="214">callAsyncJavaScript, world "smv"</text>
+    <text x="145" y="196" font-weight="600">diff by top-level nodes</text>
+    <text x="145" y="214">only changed blocks are replaced</text>
+  </g>
+  <g stroke="#57606a" stroke-width="1.4" fill="none" marker-end="url(#a)">
+    <line x1="170" y1="62" x2="198" y2="62"/>
+    <line x1="360" y1="62" x2="388" y2="62"/>
+    <line x1="540" y1="62" x2="568" y2="62"/>
+    <line x1="720" y1="62" x2="748" y2="62"/>
+    <path d="M815,94 V130 C815,150 720,150 690,168"/>
+    <line x1="570" y1="202" x2="542" y2="202"/>
+    <line x1="300" y1="202" x2="272" y2="202"/>
+  </g>
+  <text x="20" y="270" fill="#57606a">Unchanged images stay loaded and the scroll position stays where it was. A deleted file keeps the last content on screen.</text>
+</svg>

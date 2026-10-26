@@ -12,12 +12,12 @@
     </volume-check>
     <choices-outline>
         <line choice="default">
-            <line choice="skons_markdown_viewer"/>
+            <line choice="app"/>
         </line>
     </choices-outline>
     <choice id="default"/>
-    <choice id="skons_markdown_viewer" visible="false">
-        <pkg-ref id="skons_markdown_viewer"/>
+    <choice id="app" visible="false">
+        <pkg-ref id="io.github.skonmeme.markdownviewer"/>
     </choice>
-    <pkg-ref id="skons_markdown_viewer" version="@VERSION@" onConclusion="none">app.pkg</pkg-ref>
+    <pkg-ref id="io.github.skonmeme.markdownviewer" version="@VERSION@" onConclusion="none">app.pkg</pkg-ref>
 </installer-gui-script>

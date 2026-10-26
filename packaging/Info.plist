@@ -1,20 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<!-- Template: `cargo xtask bundle` replaces @VERSION@ (STANDARD §2, §4.1). -->
+<!-- Template: `cargo xtask bundle` replaces @VERSION@ and adds the icon keys (STANDARD §2, §4.1).
+     The display name "skon's Markdown Viewer" comes from en.lproj/InfoPlist.strings. -->
 <plist version="1.0">
 <dict>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>en</string>
 	<key>CFBundleDisplayName</key>
-	<string>skon's Markdown Viewer</string>
+	<string>MarkdownViewer</string>
 	<key>CFBundleName</key>
-	<string>skon's Markdown Viewer</string>
+	<string>MarkdownViewer</string>
 	<key>CFBundleExecutable</key>
-	<string>skons_markdown_viewer</string>
+	<string>MarkdownViewer</string>
 	<key>CFBundleIdentifier</key>
-	<string>skons_markdown_viewer</string>
-	<key>CFBundleIconFile</key>
-	<string>AppIcon</string>
+	<string>io.github.skonmeme.markdownviewer</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundlePackageType</key>

@@ -11,11 +11,11 @@
         <line choice="userdata"/>
     </choices-outline>
     <choice id="app" title="APP_TITLE" description="APP_DESCRIPTION" enabled="false" selected="true">
-        <pkg-ref id="skons_markdown_viewer.uninstaller.app"/>
+        <pkg-ref id="io.github.skonmeme.markdownviewer.uninstaller.app"/>
     </choice>
     <choice id="userdata" title="USERDATA_TITLE" description="USERDATA_DESCRIPTION" start_selected="true">
-        <pkg-ref id="skons_markdown_viewer.uninstaller.userdata"/>
+        <pkg-ref id="io.github.skonmeme.markdownviewer.uninstaller.userdata"/>
     </choice>
-    <pkg-ref id="skons_markdown_viewer.uninstaller.app" version="@VERSION@">uninstall-app.pkg</pkg-ref>
-    <pkg-ref id="skons_markdown_viewer.uninstaller.userdata" version="@VERSION@">uninstall-userdata.pkg</pkg-ref>
+    <pkg-ref id="io.github.skonmeme.markdownviewer.uninstaller.app" version="@VERSION@">uninstall-app.pkg</pkg-ref>
+    <pkg-ref id="io.github.skonmeme.markdownviewer.uninstaller.userdata" version="@VERSION@">uninstall-userdata.pkg</pkg-ref>
 </installer-gui-script>

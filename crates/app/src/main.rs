@@ -5,10 +5,10 @@
 //! window with a `WKWebView` (see doc/ARCHITECTURE.md).
 
 mod app_delegate;
-mod diagnostics;
 mod document;
 mod find_bar;
 mod fonts;
+mod help;
 mod menu;
 mod scheme;
 mod settings_store;

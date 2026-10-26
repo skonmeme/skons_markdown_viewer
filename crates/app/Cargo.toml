@@ -1,5 +1,5 @@
 [package]
-name = "skons_markdown_viewer"
+name = "markdown-viewer"
 description = "skon's Markdown Viewer for macOS."
 version.workspace = true
 edition.workspace = true
@@ -7,7 +7,7 @@ rust-version.workspace = true
 publish.workspace = true
 
 [[bin]]
-name = "skons_markdown_viewer"
+name = "MarkdownViewer"
 path = "src/main.rs"
 
 [dependencies]

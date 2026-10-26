@@ -208,13 +208,6 @@ impl SettingsController {
         }
     }
 
-    /// PNG image of the window content, for diagnostics.
-    pub fn snapshot_png(_mtm: MainThreadMarker) -> Option<Vec<u8>> {
-        let controller = CONTROLLER.with(|cell| cell.borrow().clone())?;
-        let content = controller.window()?.contentView()?;
-        crate::diagnostics::render_png(&content, None)
-    }
-
     fn create(mtm: MainThreadMarker) -> Retained<Self> {
         let window = unsafe {
             NSWindow::initWithContentRect_styleMask_backing_defer(
