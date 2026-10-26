@@ -1,10 +1,10 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 330" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 860 350" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">
   <defs>
     <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M0,0 L10,5 L0,10 z" fill="#57606a"/>
     </marker>
   </defs>
-  <rect width="860" height="330" fill="#ffffff"/>
+  <rect width="860" height="350" fill="#ffffff"/>
 
   <!-- lanes -->
   <rect x="10" y="30" width="840" height="110" rx="8" fill="#f6f8fa"/>
@@ -33,29 +33,36 @@
     <text x="765.5" y="86" font-weight="600">4. Commit automatically</text>
     <text x="765.5" y="104">if no problem occurs</text>
   </g>
-  <g stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arrow)">
-    <line x1="305" y1="90" x2="319" y2="90"/>
-    <line x1="486" y1="90" x2="500" y2="90"/>
-    <line x1="667" y1="90" x2="681" y2="90"/>
-    <path d="M765.5,118 V138 C765.5,160 690,152 642,170"/>
-    <line x1="560" y1="210" x2="560" y2="248"/>
-    <line x1="640" y1="271" x2="681" y2="271"/>
-  </g>
-  <text x="774" y="146" fill="#57606a">merge</text>
-  <text x="568" y="234" fill="#57606a">pull request merged</text>
 
-  <!-- develop and main -->
+  <!-- develop: development and local test -->
   <g fill="#ffffff" stroke="#57606a" stroke-width="1.5">
-    <rect x="480" y="168" width="160" height="42" rx="8"/>
-    <rect x="480" y="250" width="160" height="42" rx="8"/>
+    <rect x="300" y="168" width="160" height="42" rx="8"/>
+    <rect x="500" y="164" width="250" height="50" rx="8"/>
   </g>
-  <text x="560" y="194" text-anchor="middle" font-weight="600">Development</text>
-  <text x="560" y="276" text-anchor="middle" font-weight="600">Released state</text>
+  <text x="380" y="194" text-anchor="middle" font-weight="600">Development</text>
+  <text x="625" y="184" text-anchor="middle" font-weight="600">Local test of signed, notarized pkgs</text>
+  <text x="625" y="202" text-anchor="middle">install, test, uninstall</text>
 
-  <!-- release -->
+  <!-- main: workflow and release -->
+  <rect x="440" y="250" width="220" height="42" rx="8" fill="#ffffff" stroke="#57606a" stroke-width="1.5"/>
+  <text x="550" y="268" text-anchor="middle" font-weight="600">GitHub workflow</text>
+  <text x="550" y="284" text-anchor="middle">build, sign, notarize</text>
   <rect x="683" y="250" width="165" height="42" rx="8" fill="#dafbe1" stroke="#1a7f37" stroke-width="1.5"/>
   <text x="765.5" y="268" text-anchor="middle" font-weight="600">Release</text>
   <text x="765.5" y="284" text-anchor="middle">installer + uninstaller .pkg</text>
 
-  <text x="140" y="200" fill="#cf222e">No work is done directly on develop or main.</text>
+  <!-- arrows -->
+  <g stroke="#57606a" stroke-width="1.5" fill="none" marker-end="url(#arrow)">
+    <line x1="305" y1="90" x2="319" y2="90"/>
+    <line x1="486" y1="90" x2="500" y2="90"/>
+    <line x1="667" y1="90" x2="681" y2="90"/>
+    <path d="M765.5,118 V132 C765.5,150 470,140 400,166"/>
+    <line x1="460" y1="189" x2="498" y2="189"/>
+    <line x1="580" y1="214" x2="565" y2="248"/>
+    <line x1="660" y1="271" x2="681" y2="271"/>
+  </g>
+  <text x="560" y="140" fill="#57606a">merge</text>
+  <text x="586" y="236" fill="#57606a">pull request merged</text>
+
+  <text x="140" y="334" fill="#cf222e">No work is done directly on develop or main.</text>
 </svg>
