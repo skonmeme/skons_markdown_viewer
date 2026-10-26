@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Uninstaller package (STANDARD §10). `cargo xtask dist` replaces @VERSION@. -->
+<installer-gui-script minSpecVersion="2">
+    <title>UNINSTALLER_TITLE</title>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <conclusion file="conclusion.html" mime-type="text/html"/>
+    <options customize="allow" require-scripts="true" hostArchitectures="arm64"/>
+    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+    <choices-outline>
+        <line choice="app"/>
+        <line choice="userdata"/>
+    </choices-outline>
+    <choice id="app" title="APP_TITLE" description="APP_DESCRIPTION" enabled="false" selected="true">
+        <pkg-ref id="io.github.skonmeme.markdownviewer.uninstaller.app"/>
+    </choice>
+    <choice id="userdata" title="USERDATA_TITLE" description="USERDATA_DESCRIPTION" start_selected="true">
+        <pkg-ref id="io.github.skonmeme.markdownviewer.uninstaller.userdata"/>
+    </choice>
+    <pkg-ref id="io.github.skonmeme.markdownviewer.uninstaller.app" version="@VERSION@">uninstall-app.pkg</pkg-ref>
+    <pkg-ref id="io.github.skonmeme.markdownviewer.uninstaller.userdata" version="@VERSION@">uninstall-userdata.pkg</pkg-ref>
+</installer-gui-script>

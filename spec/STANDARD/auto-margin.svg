@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 430" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">
+  <rect width="680" height="430" fill="#ffffff"/>
+  <text x="360" y="30" text-anchor="middle" font-size="15" font-weight="600">M(W) = max(8, min(8 + 136 × (W − 480) / 1440, 0.075 × W))</text>
+
+  <!-- grid -->
+  <g stroke="#e6e8eb" stroke-width="1">
+    <line x1="80" y1="316.67" x2="640" y2="316.67"/>
+    <line x1="80" y1="263.33" x2="640" y2="263.33"/>
+    <line x1="80" y1="210" x2="640" y2="210"/>
+    <line x1="80" y1="156.67" x2="640" y2="156.67"/>
+    <line x1="80" y1="103.33" x2="640" y2="103.33"/>
+    <line x1="80" y1="50" x2="640" y2="50"/>
+    <line x1="150" y1="50" x2="150" y2="370"/>
+    <line x1="220" y1="50" x2="220" y2="370"/>
+    <line x1="290" y1="50" x2="290" y2="370"/>
+    <line x1="360" y1="50" x2="360" y2="370"/>
+    <line x1="430" y1="50" x2="430" y2="370"/>
+    <line x1="500" y1="50" x2="500" y2="370"/>
+    <line x1="570" y1="50" x2="570" y2="370"/>
+    <line x1="640" y1="50" x2="640" y2="370"/>
+  </g>
+
+  <!-- axes -->
+  <g stroke="#57606a" stroke-width="1.5">
+    <line x1="80" y1="370" x2="640" y2="370"/>
+    <line x1="80" y1="50" x2="80" y2="370"/>
+  </g>
+  <g text-anchor="middle" fill="#57606a">
+    <text x="80" y="388">0</text>
+    <text x="150" y="388">400</text>
+    <text x="220" y="388">800</text>
+    <text x="290" y="388">1200</text>
+    <text x="360" y="388">1600</text>
+    <text x="430" y="388">2000</text>
+    <text x="500" y="388">2400</text>
+    <text x="570" y="388">2800</text>
+    <text x="640" y="388">3200</text>
+  </g>
+  <g text-anchor="end" fill="#57606a">
+    <text x="72" y="374">0</text>
+    <text x="72" y="320.67">40</text>
+    <text x="72" y="267.33">80</text>
+    <text x="72" y="214">120</text>
+    <text x="72" y="160.67">160</text>
+    <text x="72" y="107.33">200</text>
+    <text x="72" y="54">240</text>
+  </g>
+  <text x="360" y="414" text-anchor="middle">Page width W (pt)</text>
+  <text x="24" y="210" text-anchor="middle" transform="rotate(-90 24 210)">Margin M (pt)</text>
+
+  <!-- thresholds -->
+  <g stroke="#8c959f" stroke-width="1" stroke-dasharray="4 4">
+    <line x1="164" y1="50" x2="164" y2="370"/>
+    <line x1="416" y1="50" x2="416" y2="370"/>
+  </g>
+  <g fill="#57606a">
+    <text x="169" y="62">W = 480</text>
+    <text x="421" y="62">W = 1920</text>
+  </g>
+
+  <!-- margin curve -->
+  <polyline points="80,359.33 164,359.33 416,178 640,50" fill="none" stroke="#0969da" stroke-width="3" stroke-linejoin="round"/>
+  <text x="90" y="350" fill="#0969da">minimum 8</text>
+  <text x="236" y="294" fill="#0969da" transform="rotate(-35.7 236 294)">grows linearly</text>
+  <text x="440" y="190" fill="#0969da" transform="rotate(-29.7 440 190)">both margins: 15 % of W</text>
+
+  <!-- samples -->
+  <g fill="#0969da">
+    <circle cx="220" cy="319.04" r="4"/>
+    <circle cx="332" cy="238.44" r="4"/>
+    <circle cx="416" cy="178" r="4"/>
+    <circle cx="528" cy="114" r="4"/>
+  </g>
+  <text x="230" y="335">W 800 → M 38</text>
+  <text x="342" y="254">W 1440 → M 99</text>
+  <text x="406" y="172" text-anchor="end">W 1920 → M 144</text>
+  <text x="518" y="104" text-anchor="end">W 2560 → M 192</text>
+</svg>

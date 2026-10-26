@@ -1,0 +1,5 @@
+"UNINSTALLER_TITLE" = "Uninstall skon's Markdown Viewer";
+"APP_TITLE" = "Remove the application";
+"APP_DESCRIPTION" = "Quits and deletes /Applications/MarkdownViewer.app.";
+"USERDATA_TITLE" = "Remove settings of the current user";
+"USERDATA_DESCRIPTION" = "Deletes the settings, caches and recent document list of the user who runs this uninstaller.";

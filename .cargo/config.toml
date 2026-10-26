@@ -1,0 +1,8 @@
+[alias]
+xtask = "run --quiet --package xtask --"
+
+[build]
+target = "aarch64-apple-darwin"
+
+[env]
+MACOSX_DEPLOYMENT_TARGET = "26.0"

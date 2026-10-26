@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Installer package (STANDARD §10). `cargo xtask dist` replaces @VERSION@. -->
+<installer-gui-script minSpecVersion="2">
+    <title>INSTALLER_TITLE</title>
+    <welcome file="welcome.html" mime-type="text/html"/>
+    <options customize="never" require-scripts="false" hostArchitectures="arm64"/>
+    <domains enable_anywhere="false" enable_currentUserHome="false" enable_localSystem="true"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="26.0"/>
+        </allowed-os-versions>
+    </volume-check>
+    <choices-outline>
+        <line choice="default">
+            <line choice="app"/>
+        </line>
+    </choices-outline>
+    <choice id="default"/>
+    <choice id="app" visible="false">
+        <pkg-ref id="io.github.skonmeme.markdownviewer"/>
+    </choice>
+    <pkg-ref id="io.github.skonmeme.markdownviewer" version="@VERSION@" onConclusion="none">app.pkg</pkg-ref>
+</installer-gui-script>
