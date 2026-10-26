@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 350" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#57606a"/>
+    </marker>
+  </defs>
+  <rect width="900" height="350" fill="#ffffff"/>
+
+  <rect x="10" y="10" width="880" height="130" rx="10" fill="#f6f8fa"/>
+  <text x="24" y="32" font-weight="700" fill="#57606a">Local test (developer's Mac, keychain)</text>
+  <rect x="10" y="160" width="880" height="180" rx="10" fill="#f6f8fa"/>
+  <text x="24" y="182" font-weight="700" fill="#57606a">GitHub workflow (pull request merged into main)</text>
+
+  <g fill="#ffffff" stroke="#0969da" stroke-width="1.4">
+    <rect x="24" y="46" width="200" height="76" rx="8"/>
+    <rect x="244" y="46" width="200" height="76" rx="8"/>
+    <rect x="464" y="46" width="200" height="76" rx="8"/>
+    <rect x="684" y="46" width="192" height="76" rx="8"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="124" y="70" font-weight="600">cargo xtask dist</text>
+    <text x="124" y="88">sign app + pkgs with</text>
+    <text x="124" y="106">Developer ID in keychain</text>
+    <text x="344" y="70" font-weight="600">cargo xtask notarize</text>
+    <text x="344" y="88">notarytool profile,</text>
+    <text x="344" y="106">then staple</text>
+    <text x="564" y="70" font-weight="600">install</text>
+    <text x="564" y="88">/Applications, use the app,</text>
+    <text x="564" y="106">Gatekeeper accepts it</text>
+    <text x="780" y="70" font-weight="600">uninstall</text>
+    <text x="780" y="88">uninstaller removes</text>
+    <text x="780" y="106">app and settings</text>
+  </g>
+
+  <g fill="#ffffff" stroke="#1a7f37" stroke-width="1.4">
+    <rect x="24" y="196" width="160" height="104" rx="8"/>
+    <rect x="200" y="196" width="160" height="104" rx="8"/>
+    <rect x="376" y="196" width="160" height="104" rx="8"/>
+    <rect x="552" y="196" width="160" height="104" rx="8"/>
+    <rect x="728" y="196" width="148" height="104" rx="8"/>
+  </g>
+  <g text-anchor="middle">
+    <text x="104" y="220" font-weight="600">version check</text>
+    <text x="104" y="238">v&lt;version&gt; must</text>
+    <text x="104" y="256">not exist yet</text>
+    <text x="280" y="220" font-weight="600">import identities</text>
+    <text x="280" y="238">DEVELOPER_ID_P12</text>
+    <text x="280" y="256">→ temporary keychain</text>
+    <text x="456" y="220" font-weight="600">test · dist</text>
+    <text x="456" y="238">cargo test</text>
+    <text x="456" y="256">cargo xtask dist</text>
+    <text x="632" y="220" font-weight="600">notarize · verify</text>
+    <text x="632" y="238">NOTARY_KEY, KEY_ID,</text>
+    <text x="632" y="256">ISSUER_ID · spctl</text>
+    <text x="802" y="220" font-weight="600">publish</text>
+    <text x="802" y="238">gh release create</text>
+    <text x="802" y="256">two .pkg files</text>
+  </g>
+  <g stroke="#57606a" stroke-width="1.4" fill="none" marker-end="url(#a)">
+    <line x1="224" y1="84" x2="242" y2="84"/>
+    <line x1="444" y1="84" x2="462" y2="84"/>
+    <line x1="664" y1="84" x2="682" y2="84"/>
+    <line x1="184" y1="248" x2="198" y2="248"/>
+    <line x1="360" y1="248" x2="374" y2="248"/>
+    <line x1="536" y1="248" x2="550" y2="248"/>
+    <line x1="712" y1="248" x2="726" y2="248"/>
+  </g>
+  <text x="24" y="326" fill="#cf222e" font-size="11">Any missing secret stops the workflow: unsigned or unnotarized packages are never released.</text>
+</svg>
