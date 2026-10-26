@@ -6,11 +6,11 @@ use std::cell::{Cell, OnceCell, RefCell};
 use block2::RcBlock;
 use objc2::rc::{Retained, Weak};
 use objc2::runtime::{AnyObject, Bool, NSObjectProtocol, ProtocolObject, Sel};
-use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send, sel};
+use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSApplication, NSBackingStoreType, NSBeep, NSColor, NSControl, NSControlStateValueOff,
     NSControlStateValueOn, NSControlTextEditingDelegate, NSDocument, NSDocumentController,
-    NSEventModifierFlags, NSImage, NSMenuItem, NSMenuItemValidation, NSPrintInfo, NSPrintOperation,
+    NSEventModifierFlags, NSMenuItem, NSMenuItemValidation, NSPrintInfo, NSPrintOperation,
     NSPrintingPaginationMode, NSResponder, NSSearchFieldDelegate, NSTextFieldDelegate, NSTextView,
     NSView, NSWindow, NSWindowController, NSWindowStyleMask, NSWorkspace,
 };
@@ -386,7 +386,6 @@ impl ViewerController {
         if self.find_bar().is_visible() {
             self.run_find();
         }
-        crate::diagnostics::page_loaded(self);
     }
 
     /// Called by the document after its text changed.
@@ -513,18 +512,6 @@ impl ViewerController {
                     block.as_deref(),
                 );
         }
-    }
-
-    /// Evaluates a diagnostic script and passes its JSON-encoded result on.
-    pub fn evaluate_for_diagnostics(&self, script: &str, completion: impl Fn(String) + 'static) {
-        let body = format!("return JSON.stringify(await (async () => {{ {script} }})());");
-        self.call_js(
-            &body,
-            &[],
-            Some(Box::new(move |result| {
-                completion(string_value(result).unwrap_or_else(|| "null".to_owned()));
-            })),
-        );
     }
 
     // --- Links (STANDARD §4.3) ---------------------------------------------
@@ -693,39 +680,6 @@ impl ViewerController {
             ),
         };
         self.find_bar().set_status(&status);
-    }
-
-    // --- Diagnostics ---------------------------------------------------------
-
-    pub fn find_for_diagnostics(&self, query: &str) {
-        self.find_bar().set_query(query);
-        self.show_find(false);
-        self.run_find();
-    }
-
-    pub fn document_for_diagnostics(&self) -> Option<Retained<Document>> {
-        self.document()
-    }
-
-    pub fn find_status(&self) -> String {
-        self.find_bar().status()
-    }
-
-    /// PNG image of the window content: the native views composited with a
-    /// snapshot of the web view (which draws out of process).
-    pub fn snapshot_png(&self, completion: impl Fn(Option<Vec<u8>>) + 'static) {
-        let Some(content) = self.window().and_then(|w| w.contentView()) else {
-            return completion(None);
-        };
-        let web_view = self.web_view().retain();
-        let block = RcBlock::new(move |image: *mut NSImage, _error: *mut NSError| {
-            let overlay = unsafe { image.as_ref() }.map(|image| (image, web_view.frame()));
-            completion(crate::diagnostics::render_png(&content, overlay));
-        });
-        unsafe {
-            self.web_view()
-                .takeSnapshotWithConfiguration_completionHandler(None, &block)
-        };
     }
 
     // --- Printing (STANDARD §4.5) -------------------------------------------

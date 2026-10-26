@@ -1,14 +1,16 @@
 //! Build tasks for skon's Markdown Viewer.
 
-mod icon;
-
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode};
 
-/// Bundle file name, bundle identifier and executable name (STANDARD §2).
-const BUNDLE_NAME: &str = "skons_markdown_viewer";
+/// App name: bundle file, executable and package file names (STANDARD §2).
+const APP_NAME: &str = "MarkdownViewer";
+/// Bundle identifier, also the prefix of the package identifiers (STANDARD §2).
+const BUNDLE_ID: &str = "io.github.skonmeme.markdownviewer";
+/// Cargo package that builds the executable.
+const APP_PACKAGE: &str = "markdown-viewer";
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 const TARGET: &str = "aarch64-apple-darwin";
 
@@ -20,7 +22,6 @@ commands:
   run [--release] [FILE...]   bundle, then start the app (optionally with files)
   dist                        release bundle plus installer and uninstaller packages
   notarize                    notarize and staple the packages in target/dist
-  icon                        regenerate packaging/AppIcon.icns
   version                     print the version
 
 environment:
@@ -39,7 +40,6 @@ fn main() -> ExitCode {
         Some("run") => run(release, &args[1..]),
         Some("dist") => dist(),
         Some("notarize") => notarize(),
-        Some("icon") => icon::generate(&root().join("packaging")),
         Some("version") => {
             println!("{VERSION}");
             Ok(())
@@ -118,14 +118,14 @@ fn bundle(release: bool) -> Result<PathBuf> {
     let root = root();
     let profile = if release { "release" } else { "debug" };
     let mut cargo = Command::new(env::var("CARGO").unwrap_or_else(|_| "cargo".to_owned()));
-    cargo.args(["build", "--package", BUNDLE_NAME, "--target", TARGET]);
+    cargo.args(["build", "--package", APP_PACKAGE, "--target", TARGET]);
     if release {
         cargo.arg("--release");
     }
     run_command(&mut cargo)?;
 
     let build_dir = root.join("target").join(TARGET).join(profile);
-    let app = build_dir.join("bundle").join(format!("{BUNDLE_NAME}.app"));
+    let app = build_dir.join("bundle").join(format!("{APP_NAME}.app"));
     if app.exists() {
         fs::remove_dir_all(&app).map_err(|e| format!("cannot remove {}: {e}", app.display()))?;
     }
@@ -136,24 +136,52 @@ fn bundle(release: bool) -> Result<PathBuf> {
         fs::create_dir_all(dir).map_err(|e| format!("cannot create {}: {e}", dir.display()))?;
     }
 
-    fs::copy(build_dir.join(BUNDLE_NAME), macos.join(BUNDLE_NAME))
+    fs::copy(build_dir.join(APP_NAME), macos.join(APP_NAME))
         .map_err(|e| format!("cannot copy the executable: {e}"))?;
     let packaging = root.join("packaging");
+    let info_plist = contents.join("Info.plist");
     let info = fs::read_to_string(packaging.join("Info.plist")).map_err(|e| e.to_string())?;
-    write(
-        &contents.join("Info.plist"),
-        &info.replace("@VERSION@", VERSION),
-    )?;
+    write(&info_plist, &info.replace("@VERSION@", VERSION))?;
     write(&contents.join("PkgInfo"), "APPL????")?;
-    fs::copy(
-        packaging.join("AppIcon.icns"),
-        resources.join("AppIcon.icns"),
-    )
-    .map_err(|e| format!("cannot copy the icon: {e}"))?;
+    compile_icon(
+        &packaging.join("AppIcon.icon"),
+        &resources,
+        &info_plist,
+        &build_dir,
+    )?;
     copy_dir(&packaging.join("en.lproj"), &resources.join("en.lproj"))?;
+    copy_dir(&packaging.join("help"), &resources.join("Help"))?;
 
     sign_app(&app)?;
     Ok(app)
+}
+
+/// Compiles the Icon Composer document into `Assets.car` (plus `AppIcon.icns`
+/// for older systems) and adds the icon keys to Info.plist (STANDARD §2.1).
+fn compile_icon(icon: &Path, resources: &Path, info_plist: &Path, build_dir: &Path) -> Result {
+    let partial = build_dir.join("icon-info.plist");
+    run_command(
+        Command::new("xcrun")
+            .arg("actool")
+            .arg(icon)
+            .arg("--compile")
+            .arg(resources)
+            .args([
+                "--platform",
+                "macosx",
+                "--minimum-deployment-target",
+                "26.0",
+            ])
+            .args(["--app-icon", "AppIcon", "--output-partial-info-plist"])
+            .arg(&partial)
+            .stdout(std::process::Stdio::null()),
+    )?;
+    run_command(
+        Command::new("/usr/libexec/PlistBuddy")
+            .arg("-c")
+            .arg(format!("Merge {}", partial.display()))
+            .arg(info_plist),
+    )
 }
 
 /// Signs with the Developer ID Application identity when configured,
@@ -180,7 +208,7 @@ fn run(release: bool, args: &[String]) -> Result {
         .filter(|a| !a.starts_with("--"))
         .map(|a| env::current_dir().unwrap_or_default().join(a))
         .collect();
-    run_command(Command::new(app.join("Contents/MacOS").join(BUNDLE_NAME)).args(files))
+    run_command(Command::new(app.join("Contents/MacOS").join(APP_NAME)).args(files))
 }
 
 /// Builds the release bundle and both packages into `target/dist`
@@ -198,7 +226,7 @@ fn dist() -> Result {
     run_command(
         Command::new("ditto")
             .arg(&app)
-            .arg(payload.join(format!("{BUNDLE_NAME}.app"))),
+            .arg(payload.join(format!("{APP_NAME}.app"))),
     )?;
     let packaging = root.join("packaging");
     let pkg_identity = env_value("SMV_SIGN_PKG_IDENTITY");
@@ -213,10 +241,10 @@ fn dist() -> Result {
             .arg("--component-plist")
             .arg(&component_plist)
             .args(["--install-location", "/Applications"])
-            .args(["--identifier", BUNDLE_NAME, "--version", VERSION])
+            .args(["--identifier", BUNDLE_ID, "--version", VERSION])
             .arg(staging.join("app.pkg")),
     )?;
-    let installer = dist.join(format!("{BUNDLE_NAME}-{VERSION}.pkg"));
+    let installer = dist.join(format!("{APP_NAME}-{VERSION}.pkg"));
     product_build(
         &packaging.join("installer"),
         &staging,
@@ -226,8 +254,8 @@ fn dist() -> Result {
 
     // Uninstaller: two payload-free packages that only run scripts.
     for (part, identifier) in [
-        ("app", format!("{BUNDLE_NAME}.uninstaller.app")),
-        ("userdata", format!("{BUNDLE_NAME}.uninstaller.userdata")),
+        ("app", format!("{BUNDLE_ID}.uninstaller.app")),
+        ("userdata", format!("{BUNDLE_ID}.uninstaller.userdata")),
     ] {
         run_command(
             Command::new("pkgbuild")
@@ -238,7 +266,7 @@ fn dist() -> Result {
                 .arg(staging.join(format!("uninstall-{part}.pkg"))),
         )?;
     }
-    let uninstaller = dist.join(format!("{BUNDLE_NAME}-uninstaller-{VERSION}.pkg"));
+    let uninstaller = dist.join(format!("{APP_NAME}-uninstaller-{VERSION}.pkg"));
     product_build(
         &packaging.join("uninstaller"),
         &staging,
@@ -299,7 +327,7 @@ fn component_plist_xml() -> String {
 		<key>BundleOverwriteAction</key>
 		<string>upgrade</string>
 		<key>RootRelativeBundlePath</key>
-		<string>{BUNDLE_NAME}.app</string>
+		<string>{APP_NAME}.app</string>
 	</dict>
 </array>
 </plist>

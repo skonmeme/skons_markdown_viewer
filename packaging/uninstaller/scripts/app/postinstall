@@ -1,13 +1,13 @@
 #!/bin/sh
 # Quits and deletes skon's Markdown Viewer (STANDARD §10). Runs as root.
 
-APP="/Applications/skons_markdown_viewer.app"
+APP="/Applications/MarkdownViewer.app"
 LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
 
-/usr/bin/pkill -x skons_markdown_viewer 2>/dev/null
+/usr/bin/pkill -x MarkdownViewer 2>/dev/null
 if [ -d "$APP" ]; then
     "$LSREGISTER" -u "$APP" 2>/dev/null
     /bin/rm -rf "$APP"
 fi
-/usr/sbin/pkgutil --forget skons_markdown_viewer >/dev/null 2>&1
+/usr/sbin/pkgutil --forget io.github.skonmeme.markdownviewer >/dev/null 2>&1
 exit 0

@@ -192,10 +192,6 @@ impl FindBar {
         self.status.setStringValue(&ns(text));
     }
 
-    pub fn status(&self) -> String {
-        self.status.stringValue().to_string()
-    }
-
     /// 0 for "previous", 1 for "next".
     pub fn selected_navigation(&self) -> isize {
         self.navigation.selectedSegment()

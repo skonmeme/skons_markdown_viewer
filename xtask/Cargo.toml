@@ -6,5 +6,3 @@ edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
 
-[dependencies]
-tiny-skia = "0.12"

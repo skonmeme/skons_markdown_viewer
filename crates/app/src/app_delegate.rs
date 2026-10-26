@@ -6,15 +6,12 @@ use objc2::runtime::{AnyObject, NSObjectProtocol};
 use objc2::{MainThreadMarker, MainThreadOnly, define_class, msg_send};
 use objc2_app_kit::{
     NSApplication, NSApplicationDelegate, NSDocumentController, NSMenu, NSMenuDelegate, NSMenuItem,
-    NSWorkspace,
 };
 use objc2_foundation::{NSNotification, NSObject, NSURL};
 
 use crate::settings_window::SettingsController;
-use crate::util::{self, ns};
-use crate::{diagnostics, menu};
-
-const HELP_URL: &str = "https://github.com/skonmeme/skons_markdown_viewer#readme";
+use crate::util;
+use crate::{help, menu};
 
 thread_local! {
     /// Set when documents were requested on the command line, so that no
@@ -39,14 +36,9 @@ define_class!(
             open_command_line_documents(mtm);
         }
 
-        #[unsafe(method(applicationDidFinishLaunching:))]
-        fn did_finish_launching(&self, _notification: &NSNotification) {
-            diagnostics::app_launched(self.mtm());
-        }
-
         #[unsafe(method(applicationShouldOpenUntitledFile:))]
         fn should_open_untitled_file(&self, _app: &NSApplication) -> bool {
-            !diagnostics::is_active() && !OPENED_FROM_COMMAND_LINE.get()
+            !OPENED_FROM_COMMAND_LINE.get()
         }
 
         /// There are no untitled documents; launching or reopening the app
@@ -86,9 +78,7 @@ define_class!(
 
         #[unsafe(method(smvShowHelp:))]
         fn show_help(&self, _sender: Option<&AnyObject>) {
-            if let Some(url) = NSURL::URLWithString(&ns(HELP_URL)) {
-                NSWorkspace::sharedWorkspace().openURL(&url);
-            }
+            help::show(self.mtm());
         }
     }
 );
@@ -109,7 +99,7 @@ fn open_document(mtm: MainThreadMarker, url: &NSURL) {
         .openDocumentWithContentsOfURL_display_completionHandler(url, true, &completion);
 }
 
-/// Opens Markdown files passed as command line arguments.
+/// Opens Markdown files passed as command line arguments (STANDARD §4.1).
 fn open_command_line_documents(mtm: MainThreadMarker) {
     let current_dir = std::env::current_dir().unwrap_or_default();
     for argument in std::env::args().skip(1) {
