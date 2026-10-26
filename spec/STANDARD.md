@@ -81,21 +81,26 @@ The page shows the document text between a left and a right margin of the same w
 
 ### 5.1 Automatic margins
 
-Automatic margins are the default. The margin `M` depends on the width `W` of the page, both in points at 100 % zoom:
+Automatic margins are the default. The margin `M` on each side depends on the width `W` of the page, both in points at 100 % zoom. Points are the unit in which macOS measures the screen, not the pixels of the display: on a display used at 2×, a width of 3840 pixels is 1920 pt.
 
 ```
-M(W) = max(16, 16 + 0.35 × (W − 560))
+M(W) = 8                               W ≤ 480
+M(W) = 8 + 136 × (W − 480) / 1440      480 ≤ W ≤ 1920
+M(W) = 0.075 × W                       W ≥ 1920
 ```
 
-A narrow page (up to 560 pt wide) keeps a margin of 16 pt. Beyond that, 35 % of the extra width is added to each margin, so a wide window gets relatively generous margins (Figure 2).
+As a single formula, `M(W) = max(8, min(8 + 136 × (W − 480) / 1440, 0.075 × W))`.
 
-| Page width `W` | Margin `M` | Text width |
-|---:|---:|---:|
-| 480 | 16 | 448 |
-| 800 | 100 | 600 |
-| 1024 | 178 | 667 |
-| 1440 | 324 | 792 |
-| 1920 | 492 | 936 |
+A narrow page (up to 480 pt wide) keeps a margin of 8 pt on each side. From there the margin grows linearly with the width until, at 1920 pt, both margins together take 15 % of the width (144 pt each). On wider pages both margins together keep taking 15 % of the width (Figure 2).
+
+| Page width `W` | Margin `M` | Both margins / `W` | Text width |
+|---:|---:|---:|---:|
+| 480 | 8 | 3.3 % | 464 |
+| 800 | 38 | 9.6 % | 724 |
+| 1024 | 59 | 11.6 % | 905 |
+| 1440 | 99 | 13.7 % | 1243 |
+| 1920 | 144 | 15 % | 1632 |
+| 2560 | 192 | 15 % | 2176 |
 
 ![Figure 2. Automatic margin as a function of the page width](STANDARD/auto-margin.svg)
 
