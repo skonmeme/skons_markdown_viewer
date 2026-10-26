@@ -38,6 +38,16 @@ STANDARD §11.3:
 
 그림 4(`spec/STANDARD/process.svg`)는 "1. Commit the request in spec/requests/ → 2. Update STANDARD.md and the source code → 3. Move the request to spec/merged/ → 4. Commit automatically if no problem occurs"를 보여 준다. `doc/ARCHITECTURE.md` §15도 같은 절차를 한국어로 적고 있다.
 
+## Decisions
+
+> 각 결정의 "근거"에는 요청자의 말을 그대로 옮겼다.
+
+### D1. CLAUDE.md에 STANDARD의 관리 방법을 넣는다
+
+- 내용: 스펙 문서는 STANDARD.md 하나뿐이다. Claude가 이 문서의 관리·갱신 방법을 항상 알고 따르도록, 그 방법을 `CLAUDE.md`에 넣는다. 두 문서가 다르면 STANDARD가 맞다(§1.1).
+- 근거: "스펙문서가 오직 STANDARD.md 하나뿐이고, 이 문서의 관리나 갱신방법을 항상 숙지하게 하기 위해서 CLAUDE.md에 관리방법을 넣어두어야해." / "STANDARD를 자꾸 무시하는 이유가 이거였구만."
+- 이유: Claude는 세션마다 `CLAUDE.md`와 자기 메모리는 자동으로 읽지만 STANDARD는 읽지 않는다. 관리 방법이 STANDARD에만 있으면 Claude는 그것을 모른 채 작업한다.
+
 ## Proposal
 
 > Claude의 제안이며 아직 결정되지 않았다. 요청자가 정한 것은 Decisions 절로 옮긴다.
@@ -67,7 +77,7 @@ STANDARD §11.3:
 ### 단계 3. 구현 및 후속 작업
 
 - STANDARD에 맞게 소스 코드와 테스트를 고친다. `cargo test --workspace`가 통과해야 한다.
-- 문서를 STANDARD에 맞춘다: `README.md`, `doc/ARCHITECTURE.md`와 `doc/ARCHITECTURE/`, `doc/DEVELOPMENT/`(논의할 주제는 추가하고 해소된 주제는 지움), Help(`packaging/help/`).
+- 문서를 STANDARD에 맞춘다: `README.md`, `doc/ARCHITECTURE.md`와 `doc/ARCHITECTURE/`, `doc/DEVELOPMENT/`(논의할 주제는 추가하고 해소된 주제는 지움), Help(`packaging/help/`), `CLAUDE.md`(§11.3이 바뀐 경우, D1).
 - 모두 끝나면 요청서를 `spec/merged/`로 옮긴다.
 
 ### 단계 4. Commit
@@ -89,6 +99,8 @@ STANDARD §11.3:
 
 - `spec/STANDARD.md` §11.3을 위의 네 단계로 다시 쓴다. 지금 §11.3의 다섯 항목은 그 안에 들어간다.
 - 그림 4(`spec/STANDARD/process.svg`)를 네 단계와 각 단계의 시작 조건, 커밋 지점에 맞게 고친다.
+- `CLAUDE.md`에 STANDARD의 관리 방법, 곧 새 §11.3의 내용을 넣는다(D1).
+- `spec/STANDARD.md` §11.2의 문서 표에 `CLAUDE.md`와 그 역할을 넣는다(D1).
 - `doc/ARCHITECTURE.md` §15를 STANDARD에 맞춘다.
 - Claude 메모리에서, STANDARD로 옮긴 규칙의 메모를 지운다.
 - 요청서 003은 이 요청이 반영된 뒤 새 절차를 따른다.
@@ -98,5 +110,4 @@ STANDARD §11.3:
 
 1. 단계 2를 요청자의 지시로만 시작할지(지금 Claude 메모리의 규칙 3), 요청서에 Open questions가 없어지면 바로 시작할지. 그리고 단계 3을 단계 2에 바로 이어서 할지. 지금 §11.3의 3번은 STANDARD를 갱신하면서 코드도 고친다고 정한다.
 2. 요청서를 고칠 때마다 커밋할지, 요청서 단계가 끝날 때 한 번에 커밋할지.
-3. Claude는 세션마다 `CLAUDE.md`와 자기 메모리는 자동으로 읽지만 STANDARD는 읽지 않는다. `CLAUDE.md`에 "작업은 STANDARD §11.3을 따른다"는 줄을 넣을지.
-4. 한 브랜치에 요청서를 여러 개 둘 수 있는지. 이 요청서는 지금 브랜치 `feat/margin`에 요청서 003과 함께 있다.
+3. 한 브랜치에 요청서를 여러 개 둘 수 있는지. 이 요청서는 지금 브랜치 `feat/margin`에 요청서 003과 함께 있다.
