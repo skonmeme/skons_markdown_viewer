@@ -4,10 +4,11 @@
 
 ## 1. 한눈에 보기
 
-- **언어**: Rust만 씁니다. AppKit·WebKit은 [objc2](https://github.com/madsmtm/objc2) 바인딩으로 직접 호출하고, Swift나 Objective-C 코드는 없습니다.
+- **언어**: Rust로 씁니다. AppKit·WebKit은 [objc2](https://github.com/madsmtm/objc2) 바인딩으로 직접 호출합니다. Swift에서만 쓸 수 있는 Foundation Models 프레임워크(AI 검색)만 작은 Swift 파일로 감싸 C 함수로 부릅니다(§7, §13). Objective-C 코드는 없습니다.
 - **앱 구조**: 문서 기반 AppKit 앱입니다. Markdown 파일 하나가 `NSDocument` 하나이고, 창마다 `WKWebView`가 하나씩 있습니다.
 - **렌더링**: Markdown → HTML 변환([comrak](https://github.com/kivikakk/comrak))과 코드 하이라이트([syntect](https://github.com/trishume/syntect))는 Rust에서 하고, 화면 표시는 WebKit이 합니다.
 - **설정 반영**: 글꼴·색·여백 설정은 CSS로 바꿔 페이지에 넣습니다.
+- **AI 검색**: 문서의 블록을 묶음으로 나눠 Mac 안의 Apple Foundation Model이나 OpenAI 호환 외부 LLM에 차례로 보내고, 모델이 고른 블록을 강조합니다. 임베딩·색인·데이터베이스는 쓰지 않습니다.
 
 ![구성 요소](ARCHITECTURE/components.svg)
 
@@ -20,13 +21,18 @@ crates/core/               smv-core: macOS API를 쓰지 않는 부분 (단위 �
   src/markdown.rs          Markdown → HTML (comrak 옵션)
   src/highlight.rs         코드 블록 하이라이트 (syntect + two-face 문법 모음)
   src/style.rs             설정 → 사용자 스타일시트(CSS)
-  src/settings.rs          설정 모델과 규칙 (글꼴 세트, 색, 여백, 확대)
+  src/settings.rs          설정 모델과 규칙 (글꼴 세트, 색, 여백, 확대, AI 모델)
+  src/settings_search.rs   설정 창 검색의 거르기
   src/page.rs              페이지 HTML 틀
   src/url.rs               파일 경로 ↔ smv: URL, HTTP Range 해석
   src/text.rs              UTF-8/UTF-16 해석
+  src/search.rs            검색 방식과 명령(`/ai` 등) 해석
+  src/ai.rs                AI 검색: 묶음 나누기, 토큰 어림, 프롬프트, 외부 LLM 요청·응답
   assets/base.css          기본 스타일시트 (GitHub 스타일)
   assets/viewer.js         페이지 안에서 도는 유일한 스크립트
 crates/app/                markdown-viewer: macOS 앱 (실행 파일 MarkdownViewer)
+  build.rs                 Swift 브리지 컴파일과 링크
+  swift/                   Foundation Models 프레임워크를 C 함수로 감싼 Swift 코드
 xtask/                     빌드 도구: 앱 번들, pkg, 공증
 packaging/                 Info.plist, 아이콘(AppIcon.icon), Help 문서, 설치·제거 pkg 자료
 .github/workflows/         릴리스 워크플로
@@ -107,12 +113,47 @@ WebKit의 웹 콘텐츠 프로세스는 샌드박스 안에서 돌아서 로컬 
 
 - **검색 막대** (`find_bar.rs`): 검색 필드, 이전·다음 버튼, 결과 표시, Match Case, Done으로 이루어집니다. 배경은 시스템 재질(`NSVisualEffectView`)이라, 사용자 지정 배경색에서도 글자가 잘 보입니다.
 - **키 처리**: 검색 필드의 델리게이트가 Return(다음), Shift-Return(이전), Esc(닫기)를 처리합니다.
-- **실제 검색**은 `viewer.js`가 합니다.
+- **키워드·정규식 검색**은 `viewer.js`가 합니다.
   1. 본문의 텍스트 노드를 이어 붙이되, 블록(문단, 목록 항목, 표 칸 등)이 바뀌는 곳에 구분 문자를 넣어 블록을 넘는 일치를 막습니다.
   2. 대소문자 무시는 코드 포인트 단위로 소문자로 바꾸되 길이가 변하는 문자는 그대로 둡니다. 공백 문자는 모두 공백으로 맞춥니다. 덕분에 원문과 비교용 문자열의 위치가 1:1로 대응합니다.
-  3. 찾은 위치를 `Range`로 만들어 CSS Custom Highlight API(`CSS.highlights`)에 등록합니다. 전체 결과와 현재 결과에 다른 색을 줍니다.
-  4. 현재 결과가 접힌 `<details>` 안에 있으면 펼친 뒤, 화면 안으로 스크롤합니다.
+  3. 정규식 검색은 식을 `new RegExp(질의, "giu")`(`/match`)나 `"gu"`(`/case`)로 만들고, 구분 문자로 나눈 블록마다 따로 맞춰 봅니다. 그래서 `^`와 `$`가 블록의 처음과 끝에 맞습니다. 공백 문자는 2처럼 모두 공백으로 맞추고, 길이가 0인 일치는 셈하지 않습니다. 식이 틀리면 `invalid`를 돌려주어 "Invalid pattern"을 보여 줍니다.
+  4. 찾은 위치를 `Range`로 만들어 CSS Custom Highlight API(`CSS.highlights`)에 등록합니다. 전체 결과와 현재 결과에 다른 색을 줍니다.
+  5. 현재 결과가 접힌 `<details>` 안에 있으면 펼친 뒤, 화면 안으로 스크롤합니다.
 - 검색을 마치면(Esc/Done) 현재 결과가 텍스트 선택으로 남습니다.
+
+### 검색 방식과 토큰
+
+- 검색 방식은 키워드, 정규식 두 가지(`/match`, `/case`), AI(`/ai`)입니다(`search.rs`의 `Mode`). 토큰이 없으면 키워드 검색입니다.
+- **명령 인식**: `NSSearchField`의 액션은 입력이 잠시 멈춘 뒤에야 불리므로, 델리게이트의 `controlTextDidChange:`에서 글자가 바뀔 때마다 `search::typed_command`로 검사합니다. 필드가 `/이름`으로 시작하고 커서가 바로 뒤 스페이스의 다음에 있을 때만 명령입니다. 명령이면 그 부분을 지우고 토큰을 붙입니다.
+- **토큰 표시**: 토큰은 검색 필드의 하위 뷰로 넣은 `NSBox`(둥근 모서리, 테두리, `quaternarySystemFillColor` 배경)와 라벨이며, 돋보기 아이콘(`searchButtonRectForBounds:`) 바로 오른쪽에 놓입니다. 셀 하위 클래스 `SMVSearchFieldCell`이 편집 영역(`searchTextRectForBounds:`)과 그리기 영역(`drawingRectForBounds:`)을 토큰 폭만큼 줄여서, 글자가 토큰과 겹치지 않습니다.
+- **토큰 지우기**: 커서가 맨 앞에 있을 때의 Delete는 `control:textView:doCommandBySelector:`에서 `deleteBackward:`로 받아 토큰을 지웁니다. 지우기 버튼(×)은 버튼 셀의 액션을 `smvFindClear:`로 바꿔 두어 토큰까지 지웁니다.
+- **검색 시작**: 키워드 검색은 글자가 바뀔 때마다 돕니다. 정규식과 AI 검색은 Return, ⌘G, 이전·다음 버튼으로 시작합니다. 마지막으로 검색한 방식과 질의(`searched`)가 지금과 같으면 결과 사이를 옮겨 다니고, 다르면 새로 검색합니다. 질의를 고치면 이전 결과를 지웁니다.
+- Match Case는 키워드 검색일 때만 켜집니다.
+
+### AI 검색
+
+1. `viewer.rs`가 `smv.aiBlocks(query)`를 부릅니다. `viewer.js`는 블록마다 글, 그 블록이 속한 제목들, 제목인지 여부를 돌려주고, 블록의 `Range`를 기억해 둡니다.
+2. `ai_search.rs`가 설정에서 모델을 고르고, `ai::batches`(smv-core)로 묶음을 만듭니다.
+   - 묶음 크기는 Mac 안의 AFM이면 모델이 알려 주는 문맥 창(`SystemLanguageModel.contextSize`)에서 지침, 질의, 답(384 토큰)의 몫을 뺀 만큼이고, 외부 LLM이면 Max tokens의 80 %입니다.
+   - 토큰 수는 글자로 어림합니다. 한중일 문자는 한 글자에 1 토큰입니다. 나머지 글자는 외부 LLM이면 4글자에 1 토큰이고, AFM이면 문맥 창이 작으므로 더 넉넉하게 3글자에 1 토큰으로 칩니다.
+   - 블록 경계에서만 나누고, 묶음이 반 넘게 찼을 때 제목이 오면 새 묶음을 시작합니다. 한 묶음보다 긴 블록은 256 토큰씩 겹치는 조각으로 자르고, 조각 하나가 묶음 하나입니다.
+   - 블록은 묶음 안에서 `[번호] (제목 > 소제목) 글` 한 줄이 되고, 프롬프트는 `Query: …` 뒤에 이 줄들을 붙인 것입니다(`ai::prompt`).
+3. 묶음을 하나씩 차례로 보냅니다.
+   - AFM: `afm.rs`가 Swift 브리지의 `smv_afm_choose`를 부릅니다. Swift 쪽은 `LanguageModelSession.respond(to:generating:)`로 `@Generable` 구조체 `ChosenBlocks`(번호 배열)를 받아 번호를 돌려줍니다.
+   - 외부 LLM: `external_llm.rs`가 `NSURLSession`으로 Chat Completions 요청을 보냅니다. 본문(`ai::request_body`)은 지침과 답 형식(`{"blocks": [1, 3]}`)을 담은 system 메시지, 프롬프트를 담은 user 메시지, 모델 옵션입니다. 답은 `choices[0].message.content`에서 읽고(`ai::response_text`), JSON 객체, JSON 배열, 숫자 나열 순서로 번호를 뽑습니다(`ai::chosen_items`). 추론 모델이 `</think>` 앞에 쓴 생각은 버립니다. 요청 시간 제한은 300초입니다.
+4. 답이 올 때마다 고른 블록 번호를 모아 `smv.showBlocks(indices)`로 강조하고, 결과 표시를 "Searching… 2/5"처럼 바꿉니다. 첫 결과가 오면 화면에 보이는 첫 결과로 스크롤하고, 그 뒤로는 현재 결과를 그대로 둡니다.
+5. 실패는 다음처럼 다룹니다. 이유는 결과 표시의 툴팁으로 보입니다.
+   - AFM이 문맥 창을 넘었다고 하면(`exceededContextWindowSize`) 그 묶음을 반으로 나눠 큐 앞에 다시 넣습니다.
+   - 언어나 안전 규칙 때문에 처리하지 못한 묶음은 건너뜁니다. 모든 묶음이 실패하면 "AI unavailable"입니다.
+   - AFM을 쓸 수 없거나, URL이 비었거나, 서버에 닿지 않거나, 인증에 실패했거나, 요청 한도에 걸렸거나, 시간이 지나면 검색 전체를 멈추고 "AI unavailable"을 보여 줍니다.
+6. 질의를 고치거나, 토큰을 지우거나, 검색 막대를 닫으면 `stop_ai`가 세대 번호(`ai_generation`)를 올리고 진행 중인 요청을 취소합니다. 늦게 온 답은 세대 번호가 달라 버려집니다. 문서가 다시 읽히면 같은 질의로 처음부터 다시 검색합니다.
+
+**Swift 브리지** (`swift/FoundationModels.swift`, `afm.rs`)
+- Swift 함수는 `@_cdecl`로 C 이름(`smv_afm_availability`, `smv_afm_context_size`, `smv_afm_choose`, `smv_afm_cancel`, `smv_afm_release`)을 내보냅니다.
+- `smv_afm_choose`는 `Task.detached`로 모델을 부르고, 끝나면 백그라운드 스레드에서 C 콜백을 요청 번호와 함께 부릅니다. Rust는 `DispatchQueue::main().exec_async`로 메인 스레드로 옮긴 뒤, thread-local 표에서 그 번호의 완료 클로저를 찾아 부릅니다. 그래서 Rust 클로저는 스레드를 넘지 않습니다.
+- 요청 핸들은 `Unmanaged`로 넘긴 Swift 객체입니다. 취소는 Swift `Task`의 `cancel()`이고, Rust의 `Request`가 사라질 때 `smv_afm_release`로 놓아 줍니다.
+
+**외부 LLM과 ATS**: `http` 주소(예: Mac에서 도는 Ollama)도 쓸 수 있도록 Info.plist의 ATS 설정은 `NSAllowsArbitraryLoads`입니다. 예전의 `NSAllowsArbitraryLoadsInWebContent`가 함께 있으면 `NSAllowsArbitraryLoads`가 무시되므로 그 키는 뺐습니다. 웹 콘텐츠의 `http` 이미지도 그대로 보입니다.
 
 ## 8. 글꼴
 
@@ -145,13 +186,19 @@ WebKit의 웹 콘텐츠 프로세스는 샌드박스 안에서 돌아서 로컬 
 
 ## 10. 설정
 
-- **저장** (`settings_store.rs`): 설정은 `NSUserDefaults`의 `Settings` 키에 JSON으로 저장됩니다.
+- **저장** (`settings_store.rs`): 설정은 `NSUserDefaults`의 `Settings` 키에 JSON으로 저장됩니다. AI 설정은 `aiModel`(`onDevice` 또는 `external`)과 `externalLlm`(`url`, `model`, `options`, `apiKey`, `maxTokens`)입니다. API key도 키체인이 아니라 이 JSON에 그대로 들어갑니다.
 - **변경 처리**: 값이 바뀌면 다음 순서로 진행합니다.
   1. 범위를 정규화합니다.
   2. 저장합니다.
   3. 열린 모든 창에 새 스타일시트를 보내고, 확대 배율과 창 배경색을 적용합니다.
   4. 설정 창이 열려 있으면 그 화면도 새로 고칩니다.
-- **설정 창** (`settings_window.rs`): `NSGridView`로 배치합니다. Default 세트가 선택되면 글꼴 관련 컨트롤을 끄고 안내 문구를 보여 줍니다.
+- **설정 창** (`settings_window.rs`): 왼쪽은 사이드바, 오른쪽은 모든 설정을 담은 한 목록입니다.
+  - 사이드바는 검색 필드와 소스 목록 스타일의 `NSTableView`(Fonts, Colors, Margins, AI)입니다.
+  - 목록은 `NSScrollView` 안의 뒤집힌 좌표계 뷰(`SMVFlippedView`)에 묶음을 세로로 쌓은 것입니다. 묶음마다 굵은 제목과 `NSGridView`(라벨 열과 컨트롤 열)가 있습니다.
+  - 사이드바 항목을 고르면 그 묶음의 제목이 맨 위에 오도록 스크롤합니다. 거꾸로 목록을 스크롤하면 `NSViewBoundsDidChangeNotification`을 받아, 맨 위에 있는 묶음을 사이드바에서 고릅니다. 목록 끝까지 내리면 마지막 묶음을 고릅니다.
+  - 검색 필드의 글은 `settings_search::visible_rows`(smv-core)로 거릅니다. 라벨이나 선택지 이름(Automatic, Custom 등)에 글이 들면 그 행을, 묶음 제목에 들면 묶음 전체를 보여 줍니다. 안내 문구처럼 딸린 행은 주인 행을 따릅니다. 숨길 행은 `NSGridRow`를 숨기고, 보이는 행이 없는 묶음은 목록과 사이드바에서 뺍니다. 남는 것이 없으면 "No Results"를 보여 줍니다.
+  - Default 세트가 선택되면 글꼴 관련 컨트롤을 끄고 안내 문구를 보여 줍니다.
+  - AI 묶음: External LLM을 누르면 `NSAlert`로 확인을 받고, 취소하면 이전 선택으로 되돌립니다. 외부 LLM 칸은 External LLM일 때만 켜집니다. API key는 `NSSecureTextField`와 `NSTextField` 둘 중 하나만 보이게 두고 눈 모양 버튼으로 바꿉니다. Max tokens 슬라이더는 8개 눈금(8K–1M)에만 멈추고, 입력 칸에 눈금 밖의 값을 넣으면 가장 가까운 눈금을 가리킵니다. 모델 상태 줄은 `afm::availability()`로 정합니다.
 
 ## 11. Help
 
@@ -180,6 +227,11 @@ WebKit의 웹 콘텐츠 프로세스는 샌드박스 안에서 돌아서 로컬 
 | `cargo xtask dist` | 릴리스 번들과 `target/dist/MarkdownViewer-<버전>.pkg`, `MarkdownViewer-uninstaller-<버전>.pkg` 생성 |
 | `cargo xtask notarize` | `target/dist`의 pkg를 공증하고 스테이플 |
 | `cargo xtask version` | 버전 출력 |
+
+**Swift 브리지** (`crates/app/build.rs`)
+- cargo가 앱을 빌드할 때 `build.rs`가 `xcrun swiftc -parse-as-library -emit-library -static`으로 `swift/FoundationModels.swift`를 `$OUT_DIR/libsmv_foundation_models.a`로 컴파일하고 링크합니다. 대상은 `arm64-apple-macosx26.0`(`MACOSX_DEPLOYMENT_TARGET`)입니다.
+- Swift 런타임은 macOS에 들어 있으므로 번들에 넣지 않습니다. SDK의 `usr/lib/swift`(스텁)와 툴체인의 `lib/swift/macosx`(호환 라이브러리)를 링크 검색 경로에, `/usr/lib/swift`를 rpath에 넣고 `FoundationModels` 프레임워크를 링크합니다.
+- `SystemLanguageModel.contextSize`는 macOS 26.4 SDK에 처음 들어왔으므로, 빌드하려면 그 SDK 이상이 든 Xcode가 필요합니다. 이 속성은 `@backDeployed`라서 앱은 macOS 26.0에서도 돕니다.
 
 **번들**
 - `packaging/Info.plist` 틀에 버전을 넣고 아이콘을 컴파일합니다. 이어서 `en.lproj/InfoPlist.strings`와 Help 문서를 복사합니다.
@@ -231,13 +283,14 @@ main으로 PR이 머지되면 다음 순서로 진행합니다.
 1. `v<버전>` 릴리스가 이미 있으면 멈춥니다. 버전은 `Cargo.toml`의 `[workspace.package] version`입니다.
 2. `DEVELOPER_ID_P12`를 임시 키체인에 넣고, 그 안에서 Developer ID Application·Installer 인증서 이름을 찾습니다.
 3. `NOTARY_KEY`, `NOTARY_KEY_ID`, `NOTARY_ISSUER_ID`로 공증 키를 준비합니다.
-4. 다음을 실행합니다.
+4. macOS 26.4 이상의 SDK가 든 Xcode를 고릅니다(§13의 Swift 브리지). 러너의 기본 Xcode가 그보다 낮으면 `/Applications`의 베타가 아닌 Xcode를 새 버전부터 골라 보고, 맞는 것이 없으면 실패합니다.
+5. 다음을 실행합니다.
    - `cargo test`
    - `cargo xtask dist`
    - `cargo xtask notarize`
    - `pkgutil --check-signature`
    - `spctl --assess`
-5. `gh release create`로 두 pkg를 올립니다.
+6. `gh release create`로 두 pkg를 올립니다.
 
 Secrets가 하나라도 없으면 처음 단계에서 실패합니다. 서명·공증되지 않은 pkg는 배포하지 않습니다.
 
@@ -249,4 +302,4 @@ Secrets가 하나라도 없으면 처음 단계에서 실패합니다. 서명·�
   3. 구현 및 후속 작업: STANDARD 갱신을 커밋한 뒤 코드·테스트·문서를 STANDARD에 맞추고, 요청서를 `spec/merged/`로 옮깁니다.
   4. 커밋: 2·3단계의 결과는 문제가 없으면 작업 브랜치에 자동으로 커밋합니다.
 - `main`, `develop`에서는 직접 작업하지 않습니다.
-- `cargo test --workspace`가 smv-core의 렌더링·설정·CSS 생성과 Help 언어 선택을 검사합니다. AppKit 화면 동작은 단위 테스트 대상이 아닙니다.
+- `cargo test --workspace`가 smv-core의 렌더링·설정·CSS 생성, 검색 명령 해석, AI 검색의 묶음 나누기·토큰 어림·요청 본문·응답 읽기, 설정 검색의 거르기와 Help 언어 선택을 검사합니다. AppKit 화면 동작과 AFM·외부 LLM을 실제로 부르는 동작은 단위 테스트 대상이 아닙니다.

@@ -1,14 +1,14 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 560" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 734" font-family="-apple-system, Helvetica, Arial, sans-serif" font-size="12" fill="#1f2328">
   <defs>
     <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
       <path d="M0,0 L10,5 L0,10 z" fill="#57606a"/>
     </marker>
   </defs>
-  <rect width="900" height="560" fill="#ffffff"/>
+  <rect width="900" height="734" fill="#ffffff"/>
 
   <!-- AppKit layer -->
-  <rect x="10" y="10" width="640" height="200" rx="10" fill="#f6f8fa" stroke="#d0d7de"/>
-  <text x="24" y="32" font-weight="700" fill="#57606a">crates/app · AppKit (objc2)</text>
+  <rect x="10" y="10" width="640" height="298" rx="10" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="24" y="32" font-weight="700" fill="#57606a">crates/app · AppKit (objc2), Swift bridge</text>
   <g fill="#ffffff" stroke="#0969da" stroke-width="1.4">
     <rect x="24" y="44" width="190" height="60" rx="8"/>
     <rect x="232" y="44" width="190" height="60" rx="8"/>
@@ -16,6 +16,9 @@
     <rect x="24" y="126" width="190" height="66" rx="8"/>
     <rect x="232" y="126" width="190" height="66" rx="8"/>
     <rect x="440" y="126" width="196" height="66" rx="8"/>
+    <rect x="24" y="214" width="190" height="66" rx="8"/>
+    <rect x="232" y="214" width="190" height="66" rx="8"/>
+    <rect x="440" y="214" width="156" height="66" rx="8"/>
   </g>
   <g text-anchor="middle">
     <text x="119" y="68" font-weight="600">AppDelegate · menu</text>
@@ -33,67 +36,86 @@
     <text x="538" y="150" font-weight="600">ViewerController</text>
     <text x="538" y="168">window, find bar,</text>
     <text x="538" y="184">links, JS bridge</text>
+    <text x="119" y="238" font-weight="600">external_llm</text>
+    <text x="119" y="256">NSURLSession</text>
+    <text x="119" y="272" fill="#57606a">OpenAI-compatible server</text>
+    <text x="327" y="238" font-weight="600">afm</text>
+    <text x="327" y="256">Swift bridge (swift/)</text>
+    <text x="327" y="272" fill="#57606a">FoundationModels, on device</text>
+    <text x="518" y="238" font-weight="600">ai_search</text>
+    <text x="518" y="256">batches in turn</text>
+    <text x="518" y="272" fill="#57606a">chosen blocks</text>
   </g>
 
   <!-- WebKit layer -->
-  <rect x="10" y="226" width="640" height="122" rx="10" fill="#f6f8fa" stroke="#d0d7de"/>
-  <text x="24" y="248" font-weight="700" fill="#57606a">WebKit</text>
+  <rect x="10" y="324" width="640" height="122" rx="10" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="24" y="346" font-weight="700" fill="#57606a">WebKit</text>
   <g fill="#ffffff" stroke="#8250df" stroke-width="1.4">
-    <rect x="24" y="260" width="190" height="72" rx="8"/>
-    <rect x="232" y="260" width="190" height="72" rx="8"/>
-    <rect x="440" y="260" width="196" height="72" rx="8"/>
+    <rect x="24" y="358" width="190" height="72" rx="8"/>
+    <rect x="232" y="358" width="190" height="72" rx="8"/>
+    <rect x="440" y="358" width="196" height="72" rx="8"/>
   </g>
   <g text-anchor="middle">
-    <text x="119" y="286" font-weight="600">SchemeHandler</text>
-    <text x="119" y="304">smv://local/&lt;path&gt;</text>
-    <text x="119" y="320" fill="#57606a">page or local file</text>
-    <text x="327" y="286" font-weight="600">WKWebView</text>
-    <text x="327" y="304">page JavaScript off</text>
-    <text x="327" y="320" fill="#57606a">one per window</text>
-    <text x="538" y="286" font-weight="600">viewer.js</text>
-    <text x="538" y="304">isolated world "smv"</text>
-    <text x="538" y="320" fill="#57606a">update · find · style</text>
+    <text x="119" y="384" font-weight="600">SchemeHandler</text>
+    <text x="119" y="402">smv://local/&lt;path&gt;</text>
+    <text x="119" y="418" fill="#57606a">page or local file</text>
+    <text x="327" y="384" font-weight="600">WKWebView</text>
+    <text x="327" y="402">page JavaScript off</text>
+    <text x="327" y="418" fill="#57606a">one per window</text>
+    <text x="538" y="384" font-weight="600">viewer.js</text>
+    <text x="538" y="402">isolated world "smv"</text>
+    <text x="538" y="418" fill="#57606a">update · find · style · AI</text>
   </g>
 
   <!-- core layer -->
-  <rect x="10" y="364" width="640" height="186" rx="10" fill="#f6f8fa" stroke="#d0d7de"/>
-  <text x="636" y="386" font-weight="700" fill="#57606a" text-anchor="end">crates/core · smv-core (no macOS API)</text>
+  <rect x="10" y="462" width="640" height="262" rx="10" fill="#f6f8fa" stroke="#d0d7de"/>
+  <text x="636" y="484" font-weight="700" fill="#57606a" text-anchor="end">crates/core · smv-core (no macOS API)</text>
   <g fill="#ffffff" stroke="#1a7f37" stroke-width="1.4">
-    <rect x="24" y="398" width="146" height="62" rx="8"/>
-    <rect x="182" y="398" width="146" height="62" rx="8"/>
-    <rect x="340" y="398" width="146" height="62" rx="8"/>
-    <rect x="498" y="398" width="138" height="62" rx="8"/>
-    <rect x="24" y="474" width="146" height="62" rx="8"/>
-    <rect x="182" y="474" width="146" height="62" rx="8"/>
-    <rect x="340" y="474" width="146" height="62" rx="8"/>
-    <rect x="498" y="474" width="138" height="62" rx="8"/>
+    <rect x="24" y="496" width="146" height="62" rx="8"/>
+    <rect x="182" y="496" width="146" height="62" rx="8"/>
+    <rect x="340" y="496" width="146" height="62" rx="8"/>
+    <rect x="498" y="496" width="138" height="62" rx="8"/>
+    <rect x="24" y="572" width="146" height="62" rx="8"/>
+    <rect x="182" y="572" width="146" height="62" rx="8"/>
+    <rect x="340" y="572" width="146" height="62" rx="8"/>
+    <rect x="498" y="572" width="138" height="62" rx="8"/>
+    <rect x="24" y="648" width="146" height="62" rx="8"/>
+    <rect x="182" y="648" width="146" height="62" rx="8"/>
+    <rect x="340" y="648" width="146" height="62" rx="8"/>
   </g>
   <g text-anchor="middle">
-    <text x="97" y="424" font-weight="600">markdown</text>
-    <text x="97" y="442">comrak (GFM)</text>
-    <text x="255" y="424" font-weight="600">highlight</text>
-    <text x="255" y="442">syntect + two-face</text>
-    <text x="413" y="424" font-weight="600">style</text>
-    <text x="413" y="442">settings → CSS</text>
-    <text x="567" y="424" font-weight="600">page</text>
-    <text x="567" y="442">HTML + base.css</text>
-    <text x="97" y="500" font-weight="600">settings</text>
-    <text x="97" y="518">font sets, colors</text>
-    <text x="255" y="500" font-weight="600">url</text>
-    <text x="255" y="518">path ↔ smv: URL</text>
-    <text x="413" y="500" font-weight="600">text</text>
-    <text x="413" y="518">UTF-8 / UTF-16</text>
-    <text x="567" y="500" font-weight="600">assets</text>
-    <text x="567" y="518">base.css, viewer.js</text>
+    <text x="97" y="522" font-weight="600">markdown</text>
+    <text x="97" y="540">comrak (GFM)</text>
+    <text x="255" y="522" font-weight="600">highlight</text>
+    <text x="255" y="540">syntect + two-face</text>
+    <text x="413" y="522" font-weight="600">style</text>
+    <text x="413" y="540">settings → CSS</text>
+    <text x="567" y="522" font-weight="600">page</text>
+    <text x="567" y="540">HTML + base.css</text>
+    <text x="97" y="598" font-weight="600">settings</text>
+    <text x="97" y="616">font sets, colors</text>
+    <text x="255" y="598" font-weight="600">url</text>
+    <text x="255" y="616">path ↔ smv: URL</text>
+    <text x="413" y="598" font-weight="600">text</text>
+    <text x="413" y="616">UTF-8 / UTF-16</text>
+    <text x="567" y="598" font-weight="600">assets</text>
+    <text x="567" y="616">base.css, viewer.js</text>
+    <text x="97" y="674" font-weight="600">search</text>
+    <text x="97" y="692">modes, /ai · /match</text>
+    <text x="255" y="674" font-weight="600">ai</text>
+    <text x="255" y="692">batches, prompt, JSON</text>
+    <text x="413" y="674" font-weight="600">settings_search</text>
+    <text x="413" y="692">filter the settings</text>
   </g>
 
   <!-- build -->
-  <rect x="670" y="10" width="220" height="540" rx="10" fill="#fff8f0" stroke="#d4a72c"/>
+  <rect x="670" y="10" width="220" height="714" rx="10" fill="#fff8f0" stroke="#d4a72c"/>
   <text x="684" y="32" font-weight="700" fill="#7d4e00">Build &amp; release</text>
   <g fill="#ffffff" stroke="#bf8700" stroke-width="1.4">
     <rect x="684" y="44" width="192" height="80" rx="8"/>
     <rect x="684" y="140" width="192" height="96" rx="8"/>
     <rect x="684" y="252" width="192" height="80" rx="8"/>
+    <rect x="684" y="348" width="192" height="80" rx="8"/>
   </g>
   <g text-anchor="middle">
     <text x="780" y="68" font-weight="600">xtask</text>
@@ -106,16 +128,22 @@
     <text x="780" y="276" font-weight="600">.github/workflows</text>
     <text x="780" y="294">release.yml</text>
     <text x="780" y="312">sign · notarize · publish</text>
+    <text x="780" y="372" font-weight="600">crates/app/build.rs</text>
+    <text x="780" y="390">swiftc → static library</text>
+    <text x="780" y="408">links FoundationModels</text>
   </g>
 
   <!-- arrows -->
   <g stroke="#57606a" stroke-width="1.4" fill="none" marker-end="url(#a)">
     <line x1="422" y1="74" x2="438" y2="74"/>
     <line x1="538" y1="104" x2="538" y2="124"/>
-    <line x1="538" y1="192" x2="538" y2="258"/>
-    <line x1="440" y1="296" x2="424" y2="296"/>
-    <line x1="232" y1="296" x2="216" y2="296"/>
-    <line x1="119" y1="332" x2="119" y2="396"/>
-    <path d="M214,159 C300,230 420,230 470,258"/>
+    <path d="M190,192 C230,212 420,212 470,194"/>
+    <line x1="518" y1="192" x2="518" y2="212"/>
+    <line x1="440" y1="247" x2="424" y2="247"/>
+    <path d="M470,280 C450,300 210,300 170,282"/>
+    <line x1="616" y1="192" x2="616" y2="356"/>
+    <line x1="440" y1="394" x2="424" y2="394"/>
+    <line x1="232" y1="394" x2="216" y2="394"/>
+    <line x1="119" y1="430" x2="119" y2="494"/>
   </g>
 </svg>
