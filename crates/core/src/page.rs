@@ -42,6 +42,8 @@ mod tests {
             "clear",
             "finish",
             "selectionText",
+            "aiBlocks",
+            "showBlocks",
         ] {
             assert!(VIEWER_JS.contains(name), "{name} missing");
         }

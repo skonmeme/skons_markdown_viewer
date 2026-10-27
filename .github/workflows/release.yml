@@ -81,6 +81,25 @@ jobs:
           echo "SMV_NOTARY_KEY_ID=$NOTARY_KEY_ID" >> "$GITHUB_ENV"
           echo "SMV_NOTARY_ISSUER=$NOTARY_ISSUER_ID" >> "$GITHUB_ENV"
 
+      # The Swift bridge to the Foundation Models framework uses
+      # SystemLanguageModel.contextSize, which needs the macOS 26.4 SDK
+      # (STANDARD §6.6).
+      - name: Select an Xcode with the macOS 26.4 SDK or later
+        run: |
+          need=26.4
+          sdk_ok() { [ "$(printf '%s\n' "$need" "$(xcrun --sdk macosx --show-sdk-version)" | sort -V | head -1)" = "$need" ]; }
+          if ! sdk_ok; then
+            for xcode in $(ls -d /Applications/Xcode*.app 2>/dev/null | grep -vi beta | sort -rV); do
+              sudo xcode-select -s "$xcode/Contents/Developer"
+              if sdk_ok; then break; fi
+            done
+          fi
+          if ! sdk_ok; then
+            echo "::error::No Xcode with the macOS $need SDK or later is installed."
+            exit 1
+          fi
+          echo "macOS SDK $(xcrun --sdk macosx --show-sdk-version)"
+
       - name: Test
         run: cargo test --workspace
 
