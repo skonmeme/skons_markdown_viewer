@@ -1,21 +1,25 @@
 //! The Settings window (STANDARD §9.1): a sidebar with a search field and the
-//! groups, next to one list of all settings.
+//! groups, which shows only icons in a narrow window, next to one list of all
+//! settings.
 
 use std::cell::{Cell, OnceCell, RefCell};
+use std::ptr::NonNull;
 
-use objc2::rc::Retained;
+use block2::RcBlock;
+use objc2::rc::{Retained, Weak};
 use objc2::runtime::{AnyObject, NSObjectProtocol, ProtocolObject, Sel};
 use objc2::{DefinedClass, MainThreadMarker, MainThreadOnly, Message, define_class, msg_send, sel};
 use objc2_app_kit::{
     NSAlert, NSAlertFirstButtonReturn, NSAlertStyle, NSBackingStoreType, NSBorderType, NSBox,
     NSBoxType, NSButton, NSColor, NSColorWell, NSControl, NSControlStateValueOff,
-    NSControlStateValueOn, NSControlTextEditingDelegate, NSFont, NSGridCell, NSGridCellPlacement,
-    NSGridRow, NSGridView, NSImage, NSLayoutAttribute, NSLayoutConstraint, NSMenuItem,
-    NSPopUpButton, NSResponder, NSScrollView, NSSearchField, NSSecureTextField, NSSlider,
-    NSStackView, NSStepper, NSTableColumn, NSTableView, NSTableViewDataSource, NSTableViewDelegate,
-    NSTableViewStyle, NSTextField, NSUserInterfaceLayoutOrientation, NSView,
+    NSControlStateValueOn, NSControlTextEditingDelegate, NSEvent, NSEventMask, NSFont, NSGridCell,
+    NSGridCellPlacement, NSGridRow, NSGridView, NSImage, NSImageView, NSLayoutAttribute,
+    NSLayoutConstraint, NSMenuItem, NSPopUpButton, NSResponder, NSScrollView, NSSearchField,
+    NSSearchFieldDelegate, NSSecureTextField, NSSlider, NSStackView, NSStepper, NSTableCellView,
+    NSTableColumn, NSTableView, NSTableViewDataSource, NSTableViewDelegate, NSTableViewStyle,
+    NSTextField, NSTextFieldDelegate, NSTextView, NSUserInterfaceLayoutOrientation, NSView,
     NSViewBoundsDidChangeNotification, NSVisualEffectBlendingMode, NSVisualEffectMaterial,
-    NSVisualEffectView, NSWindow, NSWindowController, NSWindowStyleMask,
+    NSVisualEffectView, NSWindow, NSWindowController, NSWindowDelegate, NSWindowStyleMask,
 };
 use objc2_foundation::{
     NSArray, NSEdgeInsets, NSIndexSet, NSInteger, NSNotification, NSNotificationCenter, NSObject,
@@ -43,8 +47,19 @@ const TAG_URL: isize = 1;
 const TAG_MODEL: isize = 2;
 
 /// Width of the label column of every group.
-const LABEL_WIDTH: f64 = 140.0;
+const LABEL_WIDTH: f64 = 120.0;
 const SIDEBAR_WIDTH: f64 = 190.0;
+/// Width of the sidebar while it shows only the icons.
+const ICON_SIDEBAR_WIDTH: f64 = 52.0;
+/// Windows narrower than this show only the icons in the sidebar
+/// (STANDARD §9.1).
+const NARROW_WINDOW_WIDTH: f64 = 700.0;
+/// Space on both sides of the groups. With it the widest group fits a window
+/// 560 points wide also when scroll bars are always shown.
+const LIST_MARGIN: f64 = 16.0;
+/// First size of the window; its width is also the smallest width.
+const WINDOW_WIDTH: f64 = 560.0;
+const WINDOW_HEIGHT: f64 = 580.0;
 
 /// Shown and confirmed when an external LLM is chosen (STANDARD §9.1).
 const EXTERNAL_NOTICE: &str = "AI search will send the text of the document you search and \
@@ -120,6 +135,8 @@ struct RowInfo {
 
 struct GroupInfo {
     title: &'static str,
+    /// SF Symbol shown next to the title in the sidebar.
+    symbol: &'static str,
     view: Retained<NSView>,
     rows: Vec<RowInfo>,
 }
@@ -132,6 +149,36 @@ struct Ui {
     list: Retained<NSScrollView>,
     document: Retained<NSView>,
     no_results: Retained<NSTextField>,
+    sidebar_view: Retained<NSView>,
+    sidebar_width: Retained<NSLayoutConstraint>,
+    /// Where the list starts; it does not move when the sidebar widens over it.
+    list_leading: Retained<NSLayoutConstraint>,
+    magnifier: Retained<NSButton>,
+    /// Edge of the sidebar while it is widened over the list.
+    edge: Retained<NSBox>,
+}
+
+/// What the sidebar shows (STANDARD §9.1).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum SidebarMode {
+    /// The search field and the icons with their names.
+    #[default]
+    Wide,
+    /// Only the icons and a magnifying glass, in a narrow window.
+    Icons,
+    /// Widened over the list from `Icons`, looking like `Wide`.
+    Widened,
+}
+
+/// The mode of the sidebar in a window `width` points wide.
+fn sidebar_mode(width: f64, current: SidebarMode) -> SidebarMode {
+    if width >= NARROW_WINDOW_WIDTH {
+        SidebarMode::Wide
+    } else if current == SidebarMode::Widened {
+        SidebarMode::Widened
+    } else {
+        SidebarMode::Icons
+    }
 }
 
 /// Rows of the options of an external LLM.
@@ -151,6 +198,9 @@ pub struct SettingsIvars {
     api_key_visible: Cell<bool>,
     option_rows: RefCell<Vec<OptionRow>>,
     add_option: OnceCell<Retained<NSButton>>,
+    sidebar_mode: Cell<SidebarMode>,
+    /// Watches for clicks outside the widened sidebar.
+    click_monitor: RefCell<Option<Retained<AnyObject>>>,
 }
 
 thread_local! {
@@ -194,7 +244,35 @@ define_class!(
 
     unsafe impl NSObjectProtocol for SettingsController {}
 
-    unsafe impl NSControlTextEditingDelegate for SettingsController {}
+    unsafe impl NSControlTextEditingDelegate for SettingsController {
+        /// Esc in the search field of the widened sidebar narrows it and
+        /// keeps the text (STANDARD §9.1).
+        #[unsafe(method(control:textView:doCommandBySelector:))]
+        fn control_do_command(&self, _control: &NSControl, _view: &NSTextView, command: Sel) -> bool {
+            let narrow = command == sel!(cancelOperation:)
+                && self.ivars().sidebar_mode.get() == SidebarMode::Widened;
+            if narrow {
+                self.set_sidebar_mode(SidebarMode::Icons);
+            }
+            narrow
+        }
+    }
+
+    unsafe impl NSTextFieldDelegate for SettingsController {}
+
+    unsafe impl NSSearchFieldDelegate for SettingsController {}
+
+    unsafe impl NSWindowDelegate for SettingsController {
+        #[unsafe(method(windowDidResize:))]
+        fn window_did_resize(&self, _notification: &NSNotification) {
+            self.update_sidebar_mode();
+        }
+
+        #[unsafe(method(windowDidResignKey:))]
+        fn window_did_resign_key(&self, _notification: &NSNotification) {
+            self.narrow_sidebar();
+        }
+    }
 
     unsafe impl NSTableViewDataSource for SettingsController {
         #[unsafe(method(numberOfRowsInTableView:))]
@@ -218,11 +296,36 @@ define_class!(
         fn selection_did_change(&self, _notification: &NSNotification) {
             if !self.ivars().syncing.get() {
                 self.scroll_to_selected_group();
+                // A click on the empty part of the sidebar only deselects.
+                if self.ui().is_some_and(|ui| ui.sidebar.selectedRow() >= 0) {
+                    self.narrow_sidebar();
+                }
             }
         }
     }
 
     impl SettingsController {
+        /// The magnifying glass widens the sidebar over the list.
+        #[unsafe(method(smvShowSearch:))]
+        fn show_search(&self, _sender: Option<&AnyObject>) {
+            self.set_sidebar_mode(SidebarMode::Widened);
+        }
+
+        /// Choosing an item, even the selected one, narrows the widened
+        /// sidebar (STANDARD §9.1).
+        #[unsafe(method(smvSidebarClicked:))]
+        fn sidebar_clicked(&self, sender: &NSTableView) {
+            if sender.clickedRow() >= 0 {
+                self.narrow_sidebar();
+            }
+        }
+
+        /// Esc outside the search field also narrows the widened sidebar.
+        #[unsafe(method(cancelOperation:))]
+        fn cancel_operation(&self, _sender: Option<&AnyObject>) {
+            self.narrow_sidebar();
+        }
+
         #[unsafe(method(smvSelectFontSet:))]
         fn select_font_set(&self, sender: &NSPopUpButton) {
             let Some(name) = sender.titleOfSelectedItem() else {
@@ -473,7 +576,10 @@ impl SettingsController {
         let window = unsafe {
             NSWindow::initWithContentRect_styleMask_backing_defer(
                 NSWindow::alloc(mtm),
-                NSRect::new(NSPoint::new(0.0, 0.0), NSSize::new(780.0, 580.0)),
+                NSRect::new(
+                    NSPoint::new(0.0, 0.0),
+                    NSSize::new(WINDOW_WIDTH, WINDOW_HEIGHT),
+                ),
                 NSWindowStyleMask::Titled
                     | NSWindowStyleMask::Closable
                     | NSWindowStyleMask::Resizable,
@@ -483,12 +589,12 @@ impl SettingsController {
         };
         unsafe { window.setReleasedWhenClosed(false) };
         window.setTitle(&ns("Settings"));
-        window.setContentMinSize(NSSize::new(620.0, 360.0));
+        window.setContentMinSize(NSSize::new(WINDOW_WIDTH, 360.0));
 
         let this = Self::alloc(mtm).set_ivars(SettingsIvars::default());
         let this: Retained<Self> = unsafe { msg_send![super(this), initWithWindow: &*window] };
+        window.setDelegate(Some(ProtocolObject::from_ref(&*this)));
         let (content, ui) = this.build(mtm);
-        window.setContentView(Some(&content));
         let autosave_name = ns("SMVSettings");
         if !window.setFrameUsingName(&autosave_name) {
             window.center();
@@ -506,6 +612,11 @@ impl SettingsController {
             );
         }
         let _ = this.ivars().ui.set(ui);
+        // The mode is chosen before the content is placed: the wide sidebar
+        // would widen a narrow window to fit.
+        this.update_sidebar_mode();
+        window.setContentView(Some(&content));
+        this.fit_sidebar_column();
         this.apply_search();
         this
     }
@@ -514,11 +625,169 @@ impl SettingsController {
         self.ivars().ui.get()
     }
 
-    /// The title of a group shown in the sidebar.
+    /// The icon and the title of a group shown in the sidebar; only the icon
+    /// in icon mode, with the title as its tooltip (STANDARD §9.1).
     fn sidebar_item(&self, row: NSInteger) -> Option<Retained<NSView>> {
+        let mtm = self.mtm();
         let group = *self.ivars().shown_groups.borrow().get(row as usize)?;
-        let title = self.ui()?.groups.get(group)?.title;
-        Some(view(&NSTextField::labelWithString(&ns(title), self.mtm())))
+        let info = self.ui()?.groups.get(group)?;
+        let image = NSImage::imageWithSystemSymbolName_accessibilityDescription(
+            &ns(info.symbol),
+            Some(&ns(info.title)),
+        )?;
+        let cell = NSTableCellView::new(mtm);
+        let icon = NSImageView::imageViewWithImage(&image, mtm);
+        icon.setTranslatesAutoresizingMaskIntoConstraints(false);
+        cell.addSubview(&icon);
+        unsafe { cell.setImageView(Some(&icon)) };
+        let mut constraints = vec![
+            icon.centerYAnchor()
+                .constraintEqualToAnchor(&cell.centerYAnchor()),
+        ];
+        if self.ivars().sidebar_mode.get() == SidebarMode::Icons {
+            constraints.push(
+                icon.centerXAnchor()
+                    .constraintEqualToAnchor(&cell.centerXAnchor()),
+            );
+            cell.setToolTip(Some(&ns(info.title)));
+        } else {
+            // Icons of different widths share one column so that the titles
+            // line up.
+            let title = NSTextField::labelWithString(&ns(info.title), mtm);
+            title.setTranslatesAutoresizingMaskIntoConstraints(false);
+            cell.addSubview(&title);
+            unsafe { cell.setTextField(Some(&title)) };
+            constraints.extend([
+                icon.centerXAnchor()
+                    .constraintEqualToAnchor_constant(&cell.leadingAnchor(), 10.0),
+                title
+                    .leadingAnchor()
+                    .constraintEqualToAnchor_constant(&cell.leadingAnchor(), 24.0),
+                title
+                    .trailingAnchor()
+                    .constraintLessThanOrEqualToAnchor(&cell.trailingAnchor()),
+                title
+                    .centerYAnchor()
+                    .constraintEqualToAnchor(&cell.centerYAnchor()),
+            ]);
+        }
+        NSLayoutConstraint::activateConstraints(&NSArray::from_retained_slice(&constraints));
+        Some(Retained::into_super(cell))
+    }
+
+    /// Shows the sidebar in `mode` (STANDARD §9.1).
+    fn set_sidebar_mode(&self, mode: SidebarMode) {
+        let Some(ui) = self.ui() else {
+            return;
+        };
+        let ivars = self.ivars();
+        if ivars.sidebar_mode.replace(mode) == mode {
+            return;
+        }
+        let icons = mode == SidebarMode::Icons;
+        ui.sidebar_width.setConstant(if icons {
+            ICON_SIDEBAR_WIDTH
+        } else {
+            SIDEBAR_WIDTH
+        });
+        ui.list_leading.setConstant(if mode == SidebarMode::Wide {
+            SIDEBAR_WIDTH
+        } else {
+            ICON_SIDEBAR_WIDTH
+        });
+        ui.search.setHidden(icons);
+        ui.magnifier.setHidden(!icons);
+        ui.edge.setHidden(mode != SidebarMode::Widened);
+        self.fit_sidebar_column();
+        ivars.syncing.set(true);
+        ui.sidebar.reloadData();
+        ivars.syncing.set(false);
+        if let Some(window) = self.window() {
+            if mode == SidebarMode::Widened {
+                window.makeFirstResponder(Some(&ui.search));
+            } else if icons && ui.search.currentEditor().is_some() {
+                // The hidden search field must not keep the focus.
+                window.makeFirstResponder(None);
+            }
+        }
+        if mode == SidebarMode::Widened {
+            self.watch_clicks();
+        } else if let Some(monitor) = ivars.click_monitor.take() {
+            unsafe { NSEvent::removeMonitor(&monitor) };
+        }
+        self.update_magnifier();
+        self.follow_list();
+    }
+
+    /// Makes the column of the sidebar as wide as the sidebar; AppKit does not
+    /// narrow it by itself.
+    fn fit_sidebar_column(&self) {
+        if let (Some(ui), Some(content)) = (self.ui(), self.window().and_then(|w| w.contentView()))
+        {
+            content.layoutSubtreeIfNeeded();
+            ui.sidebar.sizeToFit();
+        }
+    }
+
+    /// Picks the mode for the width of the window.
+    fn update_sidebar_mode(&self) {
+        if let Some(window) = self.window() {
+            let current = self.ivars().sidebar_mode.get();
+            self.set_sidebar_mode(sidebar_mode(window.frame().size.width, current));
+        }
+    }
+
+    /// Narrows the sidebar if it is widened over the list.
+    fn narrow_sidebar(&self) {
+        if self.ivars().sidebar_mode.get() == SidebarMode::Widened {
+            self.set_sidebar_mode(SidebarMode::Icons);
+        }
+    }
+
+    /// Narrows the widened sidebar when the user clicks outside it. The click
+    /// still reaches the control under it; the list does not move.
+    fn watch_clicks(&self) {
+        let weak = Weak::from(self);
+        let handler = RcBlock::new(move |event: NonNull<NSEvent>| -> *mut NSEvent {
+            if let Some(this) = weak.load()
+                && !this.is_in_sidebar(unsafe { event.as_ref() })
+            {
+                this.narrow_sidebar();
+            }
+            event.as_ptr()
+        });
+        let monitor = unsafe {
+            NSEvent::addLocalMonitorForEventsMatchingMask_handler(
+                NSEventMask::LeftMouseDown | NSEventMask::RightMouseDown,
+                &handler,
+            )
+        };
+        self.ivars().click_monitor.replace(monitor);
+    }
+
+    fn is_in_sidebar(&self, event: &NSEvent) -> bool {
+        let (Some(ui), Some(window)) = (self.ui(), self.window()) else {
+            return false;
+        };
+        let same_window = event
+            .window(self.mtm())
+            .is_some_and(|w| std::ptr::eq(&*w, &*window));
+        let view = &ui.sidebar_view;
+        same_window
+            && view.mouse_inRect(
+                view.convertPoint_fromView(event.locationInWindow(), None),
+                view.bounds(),
+            )
+    }
+
+    /// Shows the magnifying glass in the accent color while the search field
+    /// filters the list (STANDARD §9.1).
+    fn update_magnifier(&self) {
+        if let Some(ui) = self.ui() {
+            let filtering = ui.search.stringValue().length() > 0;
+            let tint = filtering.then(NSColor::controlAccentColor);
+            ui.magnifier.setContentTintColor(tint.as_deref());
+        }
     }
 
     fn target(&self) -> &AnyObject {
@@ -537,7 +806,7 @@ impl SettingsController {
         }
         font_set
             .widthAnchor()
-            .constraintGreaterThanOrEqualToConstant(140.0)
+            .constraintEqualToConstant(140.0)
             .setActive(true);
         let add = symbol_button(
             mtm,
@@ -593,6 +862,7 @@ impl SettingsController {
         let fonts = group(
             mtm,
             "Fonts",
+            "textformat",
             vec![
                 row(
                     "Font set:",
@@ -630,6 +900,7 @@ impl SettingsController {
         let colors = group(
             mtm,
             "Colors",
+            "paintpalette",
             vec![
                 RowSpec {
                     options: &["Automatic", "Custom"],
@@ -669,6 +940,7 @@ impl SettingsController {
         let margins = group(
             mtm,
             "Margins",
+            "arrow.left.and.right",
             vec![
                 RowSpec {
                     options: &["Automatic", "Fixed"],
@@ -691,7 +963,7 @@ impl SettingsController {
         let url = text_field(
             mtm,
             "https://example.com/v1/chat/completions",
-            380.0,
+            300.0,
             target,
         );
         url.setTag(TAG_URL);
@@ -701,9 +973,9 @@ impl SettingsController {
         unsafe { model.setAction(Some(sel!(smvExternalTextChanged:))) };
         let options = vstack(mtm, &[], 6.0);
         let api_key_secure = NSSecureTextField::new(mtm);
-        configure_text_field(&api_key_secure, "None", 300.0, target);
+        configure_text_field(&api_key_secure, "None", 280.0, target);
         unsafe { api_key_secure.setAction(Some(sel!(smvApiKeyChanged:))) };
-        let api_key_plain = text_field(mtm, "None", 300.0, target);
+        let api_key_plain = text_field(mtm, "None", 280.0, target);
         unsafe { api_key_plain.setAction(Some(sel!(smvApiKeyChanged:))) };
         // Hidden until the toggle shows it, so that the first layout does not
         // widen the window to fit both key fields.
@@ -715,6 +987,8 @@ impl SettingsController {
             target,
             sel!(smvToggleApiKey:),
         );
+        // Without a bezel the row fits a window 560 points wide.
+        api_key_toggle.setBordered(false);
         let max_tokens_slider = unsafe {
             NSSlider::sliderWithValue_minValue_maxValue_target_action(
                 0.0,
@@ -729,13 +1003,14 @@ impl SettingsController {
         max_tokens_slider.setAllowsTickMarkValuesOnly(true);
         max_tokens_slider
             .widthAnchor()
-            .constraintEqualToConstant(200.0)
+            .constraintEqualToConstant(150.0)
             .setActive(true);
         let max_tokens_field = text_field(mtm, "", 90.0, target);
         unsafe { max_tokens_field.setAction(Some(sel!(smvMaxTokensField:))) };
         let ai = group(
             mtm,
             "AI",
+            "sparkles",
             vec![
                 RowSpec {
                     options: &[ON_DEVICE_TITLE, EXTERNAL_TITLE],
@@ -781,7 +1056,6 @@ impl SettingsController {
         );
 
         let groups = vec![fonts, colors, margins, ai];
-        let (content, search, sidebar, list, document, no_results) = self.layout(mtm, &groups);
         let controls = Controls {
             font_set,
             remove,
@@ -813,32 +1087,16 @@ impl SettingsController {
             max_tokens_slider,
             max_tokens_field,
         };
-        let ui = Ui {
-            controls,
-            groups,
-            search,
-            sidebar,
-            list,
-            document,
-            no_results,
-        };
-        (content, ui)
+        self.layout(mtm, controls, groups)
     }
 
     /// Places the sidebar and the list in the window.
-    #[allow(clippy::type_complexity)]
     fn layout(
         &self,
         mtm: MainThreadMarker,
-        groups: &[GroupInfo],
-    ) -> (
-        Retained<NSView>,
-        Retained<NSSearchField>,
-        Retained<NSTableView>,
-        Retained<NSScrollView>,
-        Retained<NSView>,
-        Retained<NSTextField>,
-    ) {
+        controls: Controls,
+        groups: Vec<GroupInfo>,
+    ) -> (Retained<NSView>, Ui) {
         let target = self.target();
 
         let search = NSSearchField::new(mtm);
@@ -846,7 +1104,18 @@ impl SettingsController {
         unsafe {
             search.setTarget(Some(target));
             search.setAction(Some(sel!(smvSettingsSearchChanged:)));
+            search.setDelegate(Some(ProtocolObject::from_ref(self)));
         }
+        // Takes the place of the search field in icon mode (STANDARD §9.1).
+        let magnifier = symbol_button(
+            mtm,
+            "magnifyingglass",
+            "Search",
+            target,
+            sel!(smvShowSearch:),
+        );
+        magnifier.setBordered(false);
+        magnifier.setHidden(true);
         let sidebar = NSTableView::new(mtm);
         sidebar.setStyle(NSTableViewStyle::SourceList);
         sidebar.setHeaderView(None);
@@ -855,6 +1124,8 @@ impl SettingsController {
         unsafe {
             sidebar.setDataSource(Some(ProtocolObject::from_ref(self)));
             sidebar.setDelegate(Some(ProtocolObject::from_ref(self)));
+            sidebar.setTarget(Some(target));
+            sidebar.setAction(Some(sel!(smvSidebarClicked:)));
         }
         let sidebar_scroll = NSScrollView::new(mtm);
         sidebar_scroll.setDocumentView(Some(&sidebar));
@@ -862,12 +1133,15 @@ impl SettingsController {
         sidebar_scroll.setBorderType(NSBorderType::NoBorder);
         sidebar_scroll.setHasVerticalScroller(true);
         sidebar_scroll.setAutohidesScrollers(true);
+        let edge = NSBox::new(mtm);
+        edge.setBoxType(NSBoxType::Separator);
+        edge.setHidden(true);
 
         let sidebar_view = NSVisualEffectView::new(mtm);
         sidebar_view.setMaterial(NSVisualEffectMaterial::Sidebar);
         sidebar_view.setBlendingMode(NSVisualEffectBlendingMode::BehindWindow);
         let sidebar_view: Retained<NSView> = Retained::into_super(sidebar_view);
-        for subview in [&*search as &NSView, &sidebar_scroll] {
+        for subview in [&*search as &NSView, &magnifier, &sidebar_scroll, &edge] {
             subview.setTranslatesAutoresizingMaskIntoConstraints(false);
             sidebar_view.addSubview(subview);
         }
@@ -899,11 +1173,18 @@ impl SettingsController {
         let divider = NSBox::new(mtm);
         divider.setBoxType(NSBoxType::Separator);
 
+        // The sidebar comes last so that, when widened, it lies over the list.
         let content = NSView::new(mtm);
-        for subview in [&*sidebar_view, &divider, &list] {
+        for subview in [&*divider as &NSView, &list, &sidebar_view] {
             subview.setTranslatesAutoresizingMaskIntoConstraints(false);
             content.addSubview(subview);
         }
+        let sidebar_width = sidebar_view
+            .widthAnchor()
+            .constraintEqualToConstant(SIDEBAR_WIDTH);
+        let list_leading = divider
+            .leadingAnchor()
+            .constraintEqualToAnchor_constant(&content.leadingAnchor(), SIDEBAR_WIDTH);
         NSLayoutConstraint::activateConstraints(&NSArray::from_retained_slice(&[
             sidebar_view
                 .leadingAnchor()
@@ -914,9 +1195,7 @@ impl SettingsController {
             sidebar_view
                 .bottomAnchor()
                 .constraintEqualToAnchor(&content.bottomAnchor()),
-            sidebar_view
-                .widthAnchor()
-                .constraintEqualToConstant(SIDEBAR_WIDTH),
+            sidebar_width.clone(),
             search
                 .topAnchor()
                 .constraintEqualToAnchor_constant(&sidebar_view.topAnchor(), 12.0),
@@ -926,6 +1205,13 @@ impl SettingsController {
             search
                 .trailingAnchor()
                 .constraintEqualToAnchor_constant(&sidebar_view.trailingAnchor(), -10.0),
+            magnifier.centerXAnchor().constraintEqualToAnchor_constant(
+                &sidebar_view.leadingAnchor(),
+                ICON_SIDEBAR_WIDTH / 2.0,
+            ),
+            magnifier
+                .centerYAnchor()
+                .constraintEqualToAnchor(&search.centerYAnchor()),
             sidebar_scroll
                 .topAnchor()
                 .constraintEqualToAnchor_constant(&search.bottomAnchor(), 8.0),
@@ -938,9 +1224,14 @@ impl SettingsController {
             sidebar_scroll
                 .bottomAnchor()
                 .constraintEqualToAnchor(&sidebar_view.bottomAnchor()),
-            divider
-                .leadingAnchor()
+            edge.trailingAnchor()
                 .constraintEqualToAnchor(&sidebar_view.trailingAnchor()),
+            edge.topAnchor()
+                .constraintEqualToAnchor(&sidebar_view.topAnchor()),
+            edge.bottomAnchor()
+                .constraintEqualToAnchor(&sidebar_view.bottomAnchor()),
+            edge.widthAnchor().constraintEqualToConstant(1.0),
+            list_leading.clone(),
             divider
                 .topAnchor()
                 .constraintEqualToAnchor(&content.topAnchor()),
@@ -970,10 +1261,13 @@ impl SettingsController {
                 .constraintEqualToAnchor_constant(&document.topAnchor(), 20.0),
             stack
                 .leadingAnchor()
-                .constraintEqualToAnchor_constant(&document.leadingAnchor(), 24.0),
+                .constraintEqualToAnchor_constant(&document.leadingAnchor(), LIST_MARGIN),
             stack
                 .trailingAnchor()
-                .constraintLessThanOrEqualToAnchor_constant(&document.trailingAnchor(), -24.0),
+                .constraintLessThanOrEqualToAnchor_constant(
+                    &document.trailingAnchor(),
+                    -LIST_MARGIN,
+                ),
             document
                 .bottomAnchor()
                 .constraintEqualToAnchor_constant(&stack.bottomAnchor(), 24.0),
@@ -984,7 +1278,21 @@ impl SettingsController {
                 .topAnchor()
                 .constraintEqualToAnchor_constant(&document.topAnchor(), 40.0),
         ]));
-        (content, search, sidebar, list, document, no_results)
+        let ui = Ui {
+            controls,
+            groups,
+            search,
+            sidebar,
+            list,
+            document,
+            no_results,
+            sidebar_view,
+            sidebar_width,
+            list_leading,
+            magnifier,
+            edge,
+        };
+        (content, ui)
     }
 
     /// Shows the current settings in the controls.
@@ -1138,10 +1446,10 @@ impl SettingsController {
             }
             rows.clear();
             for index in 0..options.len() {
-                let key = text_field(mtm, "Key", 150.0, target);
+                let key = text_field(mtm, "Key", 110.0, target);
                 key.setTag((index * 2) as isize);
                 unsafe { key.setAction(Some(sel!(smvOptionChanged:))) };
-                let value = text_field(mtm, "Value", 200.0, target);
+                let value = text_field(mtm, "Value", 150.0, target);
                 value.setTag((index * 2 + 1) as isize);
                 unsafe { value.setAction(Some(sel!(smvOptionChanged:))) };
                 let remove = symbol_button(
@@ -1329,7 +1637,12 @@ fn nearest_step(tokens: u32) -> usize {
 }
 
 /// A titled group of rows (STANDARD §9.1).
-fn group(mtm: MainThreadMarker, title: &'static str, specs: Vec<RowSpec>) -> GroupInfo {
+fn group(
+    mtm: MainThreadMarker,
+    title: &'static str,
+    symbol: &'static str,
+    specs: Vec<RowSpec>,
+) -> GroupInfo {
     let views: Vec<Retained<NSArray<NSView>>> = specs
         .iter()
         .map(|spec| {
@@ -1370,6 +1683,7 @@ fn group(mtm: MainThreadMarker, title: &'static str, specs: Vec<RowSpec>) -> Gro
     let stack = vstack(mtm, &[view(&heading), view(&grid)], 12.0);
     GroupInfo {
         title,
+        symbol,
         view: Retained::into_super(stack),
         rows,
     }
@@ -1586,7 +1900,7 @@ fn select_family(popup: &NSPopUpButton, family: Option<&str>) {
 
 #[cfg(test)]
 mod tests {
-    use super::nearest_step;
+    use super::{SidebarMode, nearest_step, sidebar_mode};
 
     #[test]
     fn slider_steps() {
@@ -1594,5 +1908,21 @@ mod tests {
         assert_eq!(nearest_step(1024), 0);
         assert_eq!(nearest_step(2_000_000), 7);
         assert_eq!(nearest_step(100_000), 4);
+    }
+
+    #[test]
+    fn sidebar_shows_icons_below_700_points() {
+        assert_eq!(sidebar_mode(560.0, SidebarMode::Wide), SidebarMode::Icons);
+        assert_eq!(sidebar_mode(699.5, SidebarMode::Wide), SidebarMode::Icons);
+        assert_eq!(sidebar_mode(700.0, SidebarMode::Icons), SidebarMode::Wide);
+    }
+
+    #[test]
+    fn widened_sidebar_stays_until_the_window_is_wide() {
+        assert_eq!(
+            sidebar_mode(600.0, SidebarMode::Widened),
+            SidebarMode::Widened
+        );
+        assert_eq!(sidebar_mode(800.0, SidebarMode::Widened), SidebarMode::Wide);
     }
 }
