@@ -705,6 +705,9 @@ impl SettingsController {
         unsafe { api_key_secure.setAction(Some(sel!(smvApiKeyChanged:))) };
         let api_key_plain = text_field(mtm, "None", 300.0, target);
         unsafe { api_key_plain.setAction(Some(sel!(smvApiKeyChanged:))) };
+        // Hidden until the toggle shows it, so that the first layout does not
+        // widen the window to fit both key fields.
+        api_key_plain.setHidden(true);
         let api_key_toggle = symbol_button(
             mtm,
             "eye",
