@@ -224,6 +224,14 @@ App menu > Settings… (⌘,) opens the Settings window. Its sidebar has a searc
 - Margins: Automatic or Fixed, fixed margin (§5).
 - AI: model, and the URL, model name, model options, API key and maximum tokens of an external LLM (§6.6).
 
+Window and sidebar:
+
+- The Settings window first opens at 560 × 580 pt. After that it opens with the size and position the user last gave it. It cannot be made narrower than 560 pt.
+- Each sidebar item has an icon to the left of its name: Fonts `textformat`, Colors `paintpalette`, Margins `arrow.left.and.right` and AI `sparkles` (SF Symbols).
+- When the window is narrower than 700 pt, the sidebar becomes narrow and shows only the icons; pointing at an icon shows the name of its item. A magnifying glass takes the place of the search field. At 700 pt or more, the sidebar shows the search field and the icons with their names.
+- Clicking the magnifying glass widens the sidebar over the list, which stays where it is, and shows the search field, ready for typing. The widened sidebar looks like the sidebar of a wide window. It becomes narrow again when an item is chosen, when Esc is pressed or when the user clicks outside it. The text in the search field stays and keeps filtering the list; while there is text, the magnifying glass is shown in the accent color.
+- If the window is made 700 pt or wider while the sidebar is widened, the sidebar becomes the sidebar of a wide window and no longer covers the list.
+
 Navigation and search:
 
 - Choosing an item in the sidebar scrolls the list so that the title of its group is at the top. When the list is scrolled, the sidebar selects the group at the top. The list scrolls when it is taller than the window.
