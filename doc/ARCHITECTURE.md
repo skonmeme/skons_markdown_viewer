@@ -4,6 +4,8 @@
 
 ## 1. 한눈에 보기
 
+![문서 창](ARCHITECTURE/window.png)
+
 - **언어**: Rust로 씁니다. AppKit·WebKit은 [objc2](https://github.com/madsmtm/objc2) 바인딩으로 직접 호출합니다. Swift에서만 쓸 수 있는 Foundation Models 프레임워크(AI 검색)만 작은 Swift 파일로 감싸 C 함수로 부릅니다(§7, §13). Objective-C 코드는 없습니다.
 - **앱 구조**: 문서 기반 AppKit 앱입니다. Markdown 파일 하나가 `NSDocument` 하나이고, 창마다 `WKWebView`가 하나씩 있습니다.
 - **렌더링**: Markdown → HTML 변환([comrak](https://github.com/kivikakk/comrak))과 코드 하이라이트([syntect](https://github.com/trishume/syntect))는 Rust에서 하고, 화면 표시는 WebKit이 합니다.
@@ -111,6 +113,10 @@ WebKit의 웹 콘텐츠 프로세스는 샌드박스 안에서 돌아서 로컬 
 
 ## 7. 검색
 
+![AI 검색](ARCHITECTURE/ai-search.png)
+
+`ai` 토큰으로 "링커 오류를 고치는 방법"을 찾은 화면입니다. 문서에 같은 말이 없어도 `linker 'cc' not found`를 다룬 문단을 찾았습니다. 모델은 Mac에서 도는 Ollama의 `qwen3:1.7b`(외부 LLM)입니다.
+
 - **검색 막대** (`find_bar.rs`): 검색 필드, 이전·다음 버튼, 결과 표시, Match Case, Done으로 이루어집니다. 배경은 시스템 재질(`NSVisualEffectView`)이라, 사용자 지정 배경색에서도 글자가 잘 보입니다.
 - **키 처리**: 검색 필드의 델리게이트가 Return(다음), Shift-Return(이전), Esc(닫기)를 처리합니다.
 - **키워드·정규식 검색**은 `viewer.js`가 합니다.
@@ -185,6 +191,8 @@ WebKit의 웹 콘텐츠 프로세스는 샌드박스 안에서 돌아서 로컬 
 같은 내용의 동영상: [auto-margin.mp4](ARCHITECTURE/auto-margin.mp4)
 
 ## 10. 설정
+
+![설정 창](ARCHITECTURE/settings.png)
 
 - **저장** (`settings_store.rs`): 설정은 `NSUserDefaults`의 `Settings` 키에 JSON으로 저장됩니다. AI 설정은 `aiModel`(`onDevice` 또는 `external`)과 `externalLlm`(`url`, `model`, `options`, `apiKey`, `maxTokens`)입니다. API key도 키체인이 아니라 이 JSON에 그대로 들어갑니다.
 - **변경 처리**: 값이 바뀌면 다음 순서로 진행합니다.

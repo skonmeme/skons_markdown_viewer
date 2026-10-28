@@ -4,6 +4,8 @@
 
 macOS용 Markdown 뷰어입니다. 한글과 영문 글꼴을 따로 고를 수 있고, 창 폭에 맞춰 좌우 여백이 저절로 조절됩니다.
 
+![문서 창](doc/ARCHITECTURE/window.png)
+
 ## 요구 사항
 
 - macOS 26 이상
