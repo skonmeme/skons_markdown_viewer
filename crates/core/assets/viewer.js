@@ -15,9 +15,20 @@
     "SUMMARY", "TABLE", "TBODY", "TD", "TFOOT", "TH", "THEAD", "TR", "UL",
   ]);
   const SKIPPED_TAGS = new Set(["SCRIPT", "STYLE", "NOSCRIPT", "TEMPLATE"]);
+  const HEADING_TAGS = new Set(["H1", "H2", "H3", "H4", "H5", "H6"]);
   const BLOCK_SEPARATOR = "\u0000";
 
-  const search = { query: "", caseSensitive: false, ranges: [], index: -1 };
+  // `kind` is "keyword", "regex" or "ai" (STANDARD §6.2). `blocks` holds the
+  // ranges of the blocks collected for the last AI search.
+  const search = {
+    kind: "keyword",
+    query: "",
+    caseSensitive: false,
+    invalid: false,
+    ranges: [],
+    index: -1,
+    blocks: [],
+  };
 
   const content = () => document.getElementById(CONTENT_ID);
 
@@ -49,7 +60,14 @@
       container.insertBefore(node, anchor);
     }
 
-    if (search.query) {
+    if (search.kind === "ai") {
+      // The blocks of the old content are gone; the app runs the AI search
+      // again (STANDARD §6.1).
+      search.blocks = [];
+      search.ranges = [];
+      search.index = -1;
+      paint();
+    } else if (search.query) {
       const previous = search.index;
       computeMatches();
       search.index = search.ranges.length
@@ -138,8 +156,20 @@
     return [piece.node, offset - piece.start];
   }
 
+  function addRange(pieces, start, end) {
+    const range = document.createRange();
+    range.setStart(...position(pieces, start, false));
+    range.setEnd(...position(pieces, end, true));
+    search.ranges.push(range);
+  }
+
   function computeMatches() {
     search.ranges = [];
+    search.invalid = false;
+    if (search.kind === "regex") {
+      computeRegexMatches();
+      return;
+    }
     const fit = (text) => normalizeSpace(search.caseSensitive ? text : fold(text));
     const query = fit(search.query);
     if (!query) {
@@ -150,11 +180,110 @@
     for (let at = haystack.indexOf(query);
          at !== -1 && search.ranges.length < MAX_MATCHES;
          at = haystack.indexOf(query, at + query.length)) {
-      const range = document.createRange();
-      range.setStart(...position(pieces, at, false));
-      range.setEnd(...position(pieces, at + query.length, true));
-      search.ranges.push(range);
+      addRange(pieces, at, at + query.length);
     }
+  }
+
+  // Regular expression search (STANDARD §6.5). Each block is matched on its
+  // own, so a match never crosses blocks and `^` and `$` match at the edges of
+  // a block. White space counts as a space, as in keyword search.
+  function computeRegexMatches() {
+    if (!search.query) {
+      return;
+    }
+    let pattern;
+    try {
+      pattern = new RegExp(search.query, search.caseSensitive ? "gu" : "giu");
+    } catch {
+      search.invalid = true;
+      return;
+    }
+    const { text, pieces } = collectText();
+    const haystack = normalizeSpace(text);
+    for (let start = 0; start <= haystack.length && search.ranges.length < MAX_MATCHES;) {
+      let end = haystack.indexOf(BLOCK_SEPARATOR, start);
+      if (end === -1) {
+        end = haystack.length;
+      }
+      for (const match of haystack.slice(start, end).matchAll(pattern)) {
+        if (!match[0].length) {
+          continue;
+        }
+        addRange(pieces, start + match.index, start + match.index + match[0].length);
+        if (search.ranges.length >= MAX_MATCHES) {
+          break;
+        }
+      }
+      start = end + 1;
+    }
+  }
+
+  // The blocks of the document for AI search (STANDARD §6.6): each run of
+  // text inside one block, with the titles of the headings it belongs to.
+  // Runs without text are left out.
+  function aiBlocks(query) {
+    clear();
+    search.kind = "ai";
+    search.query = String(query ?? "");
+    const walker = document.createTreeWalker(content(), NodeFilter.SHOW_TEXT);
+    const titles = [];
+    const runs = [];
+    let block;
+    let run = null;
+    let heading = null;
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      if (!node.data || isSkipped(node)) {
+        continue;
+      }
+      const nodeBlock = blockOf(node);
+      if (!run || nodeBlock !== block) {
+        block = nodeBlock;
+        const level = block && HEADING_TAGS.has(block.tagName) ? Number(block.tagName[1]) : 0;
+        if (level && block !== heading) {
+          heading = block;
+          titles.length = level - 1;
+          titles[level - 1] = block.textContent.replace(/\s+/g, " ").trim();
+        }
+        run = {
+          first: node,
+          last: node,
+          text: "",
+          heading: level > 0,
+          headings: titles.slice(0, level ? level - 1 : titles.length).filter(Boolean),
+        };
+        runs.push(run);
+      }
+      run.last = node;
+      run.text += node.data;
+    }
+    const kept = runs.filter((r) => r.text.trim());
+    search.blocks = kept.map((r) => {
+      const range = document.createRange();
+      range.setStart(r.first, 0);
+      range.setEnd(r.last, r.last.data.length);
+      return range;
+    });
+    return kept.map((r) => ({ text: r.text, headings: r.headings, heading: r.heading }));
+  }
+
+  // Highlights the blocks the model chose, in document order. The current
+  // result stays current while more results arrive.
+  function showBlocks(indices) {
+    const current = search.ranges[search.index];
+    search.ranges = Array.from(indices ?? [], Number)
+      .sort((a, b) => a - b)
+      .map((i) => search.blocks[i])
+      .filter(Boolean);
+    search.index = current ? search.ranges.indexOf(current) : -1;
+    const fresh = search.index < 0 && search.ranges.length > 0;
+    if (fresh) {
+      search.index = firstVisibleIndex();
+    }
+    paint();
+    if (fresh) {
+      reveal(search.ranges[search.index]);
+    }
+    return state();
   }
 
   function paint() {
@@ -222,12 +351,16 @@
       count: search.ranges.length,
       index: search.index,
       capped: search.ranges.length >= MAX_MATCHES,
+      invalid: search.invalid,
     };
   }
 
-  function find(query, caseSensitive) {
+  // Keyword search, or regular expression search when `regex` is set.
+  function find(query, caseSensitive, regex) {
+    search.kind = regex ? "regex" : "keyword";
     search.query = String(query ?? "");
     search.caseSensitive = Boolean(caseSensitive);
+    search.blocks = [];
     computeMatches();
     search.index = search.ranges.length ? firstVisibleIndex() : -1;
     paint();
@@ -248,9 +381,12 @@
   }
 
   function clear() {
+    search.kind = "keyword";
     search.query = "";
+    search.invalid = false;
     search.ranges = [];
     search.index = -1;
+    search.blocks = [];
     globalThis.CSS?.highlights?.delete("smv-find");
     globalThis.CSS?.highlights?.delete("smv-find-current");
     return state();
@@ -287,7 +423,7 @@
   }
 
   globalThis.smv = Object.freeze({
-    update, setStyle, find, step, clear, finish, state,
+    update, setStyle, find, step, clear, finish, state, aiBlocks, showBlocks,
     selectionText, scrollPosition, restoreScroll, scrollToFragment,
   });
 })();

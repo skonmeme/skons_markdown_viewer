@@ -4,10 +4,13 @@
 //! unit tested on its own: Markdown rendering, settings, stylesheet generation
 //! and the web assets that run inside the viewer page.
 
+pub mod ai;
 pub mod highlight;
 pub mod markdown;
 pub mod page;
+pub mod search;
 pub mod settings;
+pub mod settings_search;
 pub mod style;
 pub mod text;
 pub mod url;
