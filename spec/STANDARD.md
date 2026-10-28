@@ -114,15 +114,81 @@ A narrow page (up to 480 pt wide) keeps a margin of 8 pt on each side. From ther
 
 ![Figure 3. Document window with the find bar](STANDARD/window-layout.svg)
 
+### 6.1 Find bar
+
 - Edit > Find > Find… (⌘F) shows the find bar at the top of the window (Figure 3). It contains a search field, Previous and Next buttons, a match counter, a Match Case option and a Done button.
-- Searching starts while the user types. The query is matched as literal text, ignoring case unless Match Case is on.
-- A match can cover text with different styles inside one block, but never text from different blocks (paragraphs, list items, table cells, …). A space in the query matches any white space.
+- The search field can hold a mode token in front of the query (§6.3).
+- Match Case can be used only in keyword search. In the other modes it is dimmed and cannot be changed.
 - All matches are highlighted. The current match is highlighted in a stronger color and scrolled into view. A match inside a collapsed section opens that section.
-- The counter shows the position of the current match and the number of matches ("3 of 12"), or "Not found".
+- The counter shows the position of the current match and the number of matches ("3 of 12"), or "Not found". In regular expression search and AI search it can also show "Invalid pattern", "Searching…" and "AI unavailable" (§6.5, §6.6).
 - Return and ⌘G go to the next match; Shift-Return and ⇧⌘G go to the previous match. The search wraps around at the end and the start of the document.
-- Edit > Find > Use Selection for Find (⌘E) searches for the selected text.
+- Edit > Find > Use Selection for Find (⌘E) searches for the selected text in the current mode and keeps the token. It searches at once in every mode.
 - Esc and Done close the find bar and remove the highlights. The current match becomes the text selection.
-- If the document is reloaded (§4.4) while the find bar is open, the search is repeated on the new content.
+- If the document is reloaded (§4.4) while the find bar is open, the search is repeated on the new content. An AI search that is still running is stopped and started again.
+
+### 6.2 Search modes
+
+| Mode | Command | Token | Matches | Case | Search starts |
+|---|---|---|---|---|---|
+| Keyword | `/key` | `key` | The query as literal text (§6.4) | Ignored unless Match Case is on | While the user types |
+| Regular expression | `/match` | `match` | The query as a regular expression (§6.5) | Ignored | With Return |
+| Regular expression | `/case` | `case` | The query as a regular expression (§6.5) | Matched | With Return |
+| AI | `/ai` | `ai` | Blocks related to the meaning of the query (§6.6) | — | With Return |
+
+- Without a token, the search is a keyword search. No setting changes this, and the search field does not show it.
+- In the modes that start with Return, ⌘G and the Previous and Next buttons also start the search when the query has changed since the last search. Otherwise they move to the next or previous match, as in keyword search.
+
+### 6.3 Mode tokens
+
+- When a command is typed at the start of the search field and followed by Space, it turns into a token: the command name without the slash, in a rounded box with a border and a background (Figure 3). The mode of the token is used while the token is there.
+- Commands are recognized regardless of case (`/AI` works), only at the start of the field and only while the field has no token. The field holds at most one token. A command typed after a token, and a word that is not one of the four commands (for example `/foo`), are searched as ordinary text.
+- Delete right after the token removes it. The clear button of the search field removes the token and the text.
+- When the token is removed, the text after it stays and is searched again as a keyword search.
+- The token and the text are kept when the find bar is closed and opened again. ⌘F selects only the text after the token.
+- Without a token, the search field looks as before, with the placeholder "Find".
+
+### 6.4 Keyword search
+
+- The query is matched as literal text, ignoring case unless Match Case is on.
+- A match can cover text with different styles inside one block, but never text from different blocks (paragraphs, list items, table cells, …). A space in the query matches any white space.
+
+### 6.5 Regular expression search
+
+- The query is a JavaScript regular expression in Unicode mode. `/match` ignores case; `/case` matches it.
+- A match never covers text from different blocks. `^` and `$` match at the start and the end of a block.
+- All white space in the document counts as a space, so a space in the expression matches any white space, as in keyword search.
+- Matches of length zero (for example `x*` matching empty text) are not counted.
+- If the expression is not valid, the counter shows "Invalid pattern" and nothing is highlighted.
+
+### 6.6 AI search
+
+AI search finds the blocks (§6.4) of the document that are related to the meaning of the query, even when they do not contain its words.
+
+**Models.** The model is chosen in the AI settings (§9.1).
+
+- **Apple Foundation Model (on this Mac)** is the default. It is the on-device model of the Foundation Models framework (`SystemLanguageModel.default`) and works on macOS 26 and later when Apple Intelligence is turned on. On macOS 26 it is the 2025 model with a context window of 4,096 tokens, so AI search is slower and less accurate there than on macOS 27. The document never leaves the Mac.
+- **External LLM** is a server that offers the OpenAI-compatible Chat Completions API. The app sends a `POST` request to the URL, which is the full address of the endpoint (`http` or `https`). The model name is sent as `model`, and an API key that is not empty is sent in the header `Authorization: Bearer <API key>`. The text of the document being searched and the query are sent to the URL.
+- Each model option of an external LLM becomes a member of the request body. A value that reads as JSON (a number, `true`, `false`, `null`, a quoted string, an array or an object) is sent as that value; any other value is sent as a string. For example, `temperature` and `0` give `"temperature": 0`, and `reasoning_effort` and `low` give `"reasoning_effort": "low"`. Rows with an empty key are ignored, the last of several rows with the same key wins, and options cannot replace `model` or `messages`.
+
+**Method.**
+
+- AI search uses no embeddings, no index and no database, and it stores nothing about the document or the results.
+- Each block is given to the model with the headings it belongs to (for example "Installation > macOS"). The blocks are sent in batches, each together with the query, and the model returns the blocks that are related to the query.
+- Batches are split between blocks. When a batch is more than half full and a heading comes, the heading starts a new batch. Batches do not overlap. A block longer than one batch is cut into pieces that overlap by 256 tokens, and the block is a result when any of its pieces is related. These rules are the same for both models.
+- A batch for Apple Foundation Model fills the context window that the model reports, less room for the instructions and the answer. A batch for an external LLM fills 80 % of the maximum tokens set in the AI settings. For an external LLM the app estimates tokens from the text: one token for each Chinese, Japanese or Korean character and one token for every four other characters.
+
+**Searching.**
+
+- The search starts with Return (§6.2). While it runs, the counter shows "Searching…"; when there are several batches it also shows how many of them are done, as in "Searching… 2/5". Results are highlighted as they are found. Editing the query, removing the token or closing the find bar stops the search.
+- Each result is a whole block that the model chose, highlighted like a match. The results are in document order, and moving between them works as in keyword search (§6.1).
+- A request to an external LLM fails if no answer comes within 5 minutes.
+
+**When AI search cannot be used.**
+
+- The `ai` token can be made even then. The search shows "AI unavailable" in the counter and highlights nothing. Pointing at the counter shows the reason:
+  - Apple Foundation Model: Apple Intelligence is turned off, the Mac does not support it, or the model is not ready.
+  - External LLM: the URL is empty, the server cannot be reached, authentication failed, the rate limit was reached, or the request timed out.
+- If the model cannot handle some batches, for example because of an unsupported language or a refusal by its safety rules, only the results of the other batches are shown. If every batch fails, the counter shows "AI unavailable".
 
 ## 7. Fonts
 
@@ -151,13 +217,37 @@ A narrow page (up to 480 pt wide) keeps a margin of 8 pt on each side. From ther
 
 ### 9.1 Settings window
 
-App menu > Settings… (⌘,) opens the Settings window with three groups:
+App menu > Settings… (⌘,) opens the Settings window. Its sidebar has a search field and the items Fonts, Colors, Margins and AI. All settings are shown in one list next to the sidebar, in four groups with these titles:
 
 - Fonts: font set, Latin font, Korean font, monospaced font, font size, line height (§7).
 - Colors: Automatic or Custom, text color, background color (§8).
 - Margins: Automatic or Fixed, fixed margin (§5).
+- AI: model, and the URL, model name, model options, API key and maximum tokens of an external LLM (§6.6).
 
-Changes apply immediately to every open document and are kept after the app quits. The zoom level (§4.5) is also shared by all windows and kept.
+Window and sidebar:
+
+- The Settings window first opens at 560 × 580 pt. After that it opens with the size and position the user last gave it. It cannot be made narrower than 560 pt.
+- Each sidebar item has an icon to the left of its name: Fonts `textformat`, Colors `paintpalette`, Margins `arrow.left.and.right` and AI `sparkles` (SF Symbols).
+- When the window is narrower than 700 pt, the sidebar becomes narrow and shows only the icons; pointing at an icon shows the name of its item. A magnifying glass takes the place of the search field. At 700 pt or more, the sidebar shows the search field and the icons with their names.
+- Clicking the magnifying glass widens the sidebar over the list, which stays where it is, and shows the search field, ready for typing. The widened sidebar looks like the sidebar of a wide window. It becomes narrow again when an item is chosen, when Esc is pressed or when the user clicks outside it. The text in the search field stays and keeps filtering the list; while there is text, the magnifying glass is shown in the accent color.
+- If the window is made 700 pt or wider while the sidebar is widened, the sidebar becomes the sidebar of a wide window and no longer covers the list.
+
+Navigation and search:
+
+- Choosing an item in the sidebar scrolls the list so that the title of its group is at the top. When the list is scrolled, the sidebar selects the group at the top. The list scrolls when it is taller than the window.
+- Text in the search field filters the list, ignoring case. A setting is shown when its label or the name of one of its options contains the text; all settings of a group are shown when the group title contains it. Only groups with settings shown appear, in the list and in the sidebar. When nothing matches, the list shows "No Results". An empty search field shows all settings.
+
+The AI group:
+
+- Model: radio buttons "Apple Foundation Model (on this Mac)" and "External LLM". The default is Apple Foundation Model (on this Mac). Below them the group shows the state of the chosen model, for example "Apple Intelligence is turned off."
+- URL, Model name, Model options, API key and Max tokens can be edited only when External LLM is chosen. URL, Model name, Model options and API key are empty at first.
+- Model options are rows of a key field and a value field. The + button adds a row and the − button removes one.
+- API key is shown as `*` characters; a toggle shows it as text.
+- Max tokens is the largest number of tokens the external LLM reads at once. It is set with a slider whose steps are 8K, 16K, 32K, 64K, 128K, 256K, 512K and 1M (K = 1,024), or typed into a field that accepts 1,024 to 2,000,000. The default is 32K.
+- Choosing External LLM asks for confirmation: "AI search will send the text of the document you search and your query to the server set below." Use confirms the choice; Cancel keeps the previous one. While External LLM is chosen, the group shows the same notice.
+- No setting turns AI search on or off. It is used only through the `ai` token (§6.2).
+
+Changes apply immediately to every open document and are kept after the app quits; this includes the API key. The zoom level (§4.5) is also shared by all windows and kept.
 
 ### 9.2 Menus and keyboard shortcuts
 

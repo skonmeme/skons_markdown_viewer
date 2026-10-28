@@ -15,17 +15,20 @@ use objc2_app_kit::{
     NSView, NSWindow, NSWindowController, NSWindowStyleMask, NSWorkspace,
 };
 use objc2_foundation::{
-    NSCopying, NSDictionary, NSError, NSNumber, NSObject, NSPoint, NSRect, NSSize, NSString, NSURL,
-    NSURLRequest,
+    NSCopying, NSDictionary, NSError, NSNotification, NSNumber, NSObject, NSPoint, NSRange, NSRect,
+    NSSize, NSString, NSURL, NSURLRequest,
 };
 use objc2_web_kit::{
     WKContentWorld, WKNavigation, WKNavigationAction, WKNavigationActionPolicy,
     WKNavigationDelegate, WKNavigationType, WKUserScript, WKUserScriptInjectionTime, WKWebView,
     WKWebViewConfiguration,
 };
+use smv_core::ai::Block;
 use smv_core::page::{CONTENT_WORLD, VIEWER_JS};
+use smv_core::search::{self, Mode};
 use smv_core::settings::{ColorMode, MarginMode};
 
+use crate::ai_search::{self, BatchResult, Progress};
 use crate::document::Document;
 use crate::find_bar::FindBar;
 use crate::scheme::SchemeHandler;
@@ -57,6 +60,16 @@ pub struct ViewerIvars {
     pending_fragment: RefCell<Option<String>>,
     /// Query of the last search, kept when the find bar is closed.
     find_query: RefCell<String>,
+    /// Mode and query of the last search that was started with Return
+    /// (STANDARD §6.2); `None` after the query changed.
+    searched: RefCell<Option<(Mode, String)>>,
+    /// The AI search of this window while it runs (STANDARD §6.6).
+    ai: RefCell<Option<ai_search::Search>>,
+    /// Raised whenever an AI search starts or stops, so that late answers
+    /// are ignored.
+    ai_generation: Cell<u64>,
+    /// Set while a typed command turns into a token.
+    converting: Cell<bool>,
 }
 
 define_class!(
@@ -94,7 +107,7 @@ define_class!(
 
     unsafe impl NSControlTextEditingDelegate for ViewerController {
         #[unsafe(method(control:textView:doCommandBySelector:))]
-        fn control_do_command(&self, _control: &NSControl, _view: &NSTextView, command: Sel) -> bool {
+        fn control_do_command(&self, _control: &NSControl, view: &NSTextView, command: Sel) -> bool {
             if command == sel!(insertNewline:) {
                 let shift = NSApplication::sharedApplication(self.mtm())
                     .currentEvent()
@@ -104,8 +117,26 @@ define_class!(
             } else if command == sel!(cancelOperation:) {
                 self.close_find();
                 true
+            } else if command == sel!(deleteBackward:) {
+                // Delete right after the token removes it (STANDARD §6.3).
+                let at_start = view.selectedRange() == NSRange::new(0, 0);
+                let remove = at_start && self.find_bar().token().is_some();
+                if remove {
+                    self.find_bar().set_token(None, 0);
+                    self.mode_changed();
+                }
+                remove
             } else {
                 false
+            }
+        }
+
+        /// Sent at every keystroke, unlike the action of the search field,
+        /// which waits for a pause in typing.
+        #[unsafe(method(controlTextDidChange:))]
+        fn control_text_did_change(&self, _notification: &NSNotification) {
+            if self.convert_typed_command() {
+                self.mode_changed();
             }
         }
     }
@@ -190,16 +221,29 @@ define_class!(
                     if text.is_empty() {
                         return;
                     }
+                    // Searches at once in every mode and keeps the token (STANDARD §6.1).
                     this.find_bar().set_query(&text);
                     this.show_find(false);
-                    this.run_find();
+                    if this.mode().starts_with_return() {
+                        this.start_search();
+                    } else {
+                        this.run_find();
+                    }
                 })),
             );
         }
 
         #[unsafe(method(smvFindFieldChanged:))]
         fn find_field_changed_action(&self, _sender: Option<&AnyObject>) {
-            self.run_find();
+            self.find_field_changed();
+        }
+
+        #[unsafe(method(smvFindClear:))]
+        fn find_clear_action(&self, _sender: Option<&AnyObject>) {
+            // The clear button removes the token and the text (STANDARD §6.3).
+            self.find_bar().set_query("");
+            self.find_bar().set_token(None, 0);
+            self.mode_changed();
         }
 
         #[unsafe(method(smvFindNavigate:))]
@@ -236,6 +280,10 @@ impl ViewerController {
             pending_scroll: Cell::new(None),
             pending_fragment: RefCell::new(None),
             find_query: RefCell::new(String::new()),
+            searched: RefCell::new(None),
+            ai: RefCell::new(None),
+            ai_generation: Cell::new(0),
+            converting: Cell::new(false),
         });
         let this: Retained<Self> = unsafe { msg_send![super(this), initWithWindow: &*window] };
         // Windows are positioned by position_window().
@@ -384,7 +432,7 @@ impl ViewerController {
             self.scroll_to_fragment(&fragment);
         }
         if self.find_bar().is_visible() {
-            self.run_find();
+            self.repeat_search();
         }
     }
 
@@ -411,6 +459,11 @@ impl ViewerController {
             Some(Box::new(move |result| {
                 if let Some(this) = weak.load() {
                     this.show_find_result(result);
+                    // The page repeats keyword and regular expression
+                    // searches; an AI search runs again (STANDARD §6.1).
+                    if this.find_bar().is_visible() && this.mode() == Mode::Ai {
+                        this.repeat_search();
+                    }
                 }
             })),
         );
@@ -601,6 +654,8 @@ impl ViewerController {
     }
 
     fn close_find(&self) {
+        self.stop_ai();
+        self.ivars().searched.replace(None);
         self.find_bar().hide();
         self.call_js("return smv.finish();", &[], None);
         if let Some(window) = self.window() {
@@ -608,19 +663,102 @@ impl ViewerController {
         }
     }
 
+    /// The mode of the token, or keyword search without one (STANDARD §6.2).
+    fn mode(&self) -> Mode {
+        self.find_bar().token().unwrap_or(Mode::Keyword)
+    }
+
+    /// The action of the search field: its text changed.
+    fn find_field_changed(&self) {
+        if self.ivars().converting.get() {
+            return;
+        }
+        if self.convert_typed_command() {
+            return self.mode_changed();
+        }
+        if self.mode().starts_with_return() {
+            self.query_edited();
+        } else {
+            self.run_find();
+        }
+    }
+
+    /// Turns a command that was just typed at the start of the field, with
+    /// its Space, into a token (STANDARD §6.3).
+    fn convert_typed_command(&self) -> bool {
+        let find_bar = self.find_bar();
+        if self.ivars().converting.get() || find_bar.token().is_some() {
+            return false;
+        }
+        let Some(caret) = find_bar.caret() else {
+            return false;
+        };
+        let text = find_bar.query();
+        let Some(command) = search::typed_command(&text, caret) else {
+            return false;
+        };
+        self.ivars().converting.set(true);
+        find_bar.set_query(&text[command.length..]);
+        find_bar.set_token(Some(command.mode), 0);
+        self.ivars().converting.set(false);
+        true
+    }
+
+    /// A token was added or removed: results of the old mode no longer
+    /// apply, and a keyword search runs at once.
+    fn mode_changed(&self) {
+        self.stop_ai();
+        self.ivars().searched.replace(None);
+        if self.mode().starts_with_return() {
+            self.clear_results();
+        } else {
+            self.run_find();
+        }
+    }
+
+    /// Editing the query of a mode that starts with Return stops a running
+    /// search and removes its results.
+    fn query_edited(&self) {
+        let query = self.find_bar().query();
+        let mode = self.mode();
+        let current = self
+            .ivars()
+            .searched
+            .borrow()
+            .as_ref()
+            .is_some_and(|(m, q)| *m == mode && *q == query);
+        if !current {
+            self.stop_ai();
+            self.ivars().searched.replace(None);
+            self.clear_results();
+        }
+    }
+
+    fn clear_results(&self) {
+        self.call_js("return smv.clear();", &[], None);
+        self.find_bar().set_status("", None);
+    }
+
+    /// Keyword search, run while the user types (STANDARD §6.4).
     fn run_find(&self) {
         let query = self.find_bar().query();
         self.ivars().find_query.replace(query.clone());
         if query.is_empty() {
-            self.call_js("return smv.clear();", &[], None);
-            self.find_bar().set_status("");
-            return;
+            return self.clear_results();
         }
         let case_sensitive = NSNumber::new_bool(self.find_bar().case_sensitive());
+        self.js_find(&query, &case_sensitive, false);
+    }
+
+    fn js_find(&self, query: &str, case_sensitive: &NSNumber, regex: bool) {
         let weak = Weak::from(self);
         self.call_js(
-            "return smv.find(query, caseSensitive);",
-            &[("query", &ns(&query)), ("caseSensitive", &case_sensitive)],
+            "return smv.find(query, caseSensitive, regex);",
+            &[
+                ("query", &ns(query)),
+                ("caseSensitive", case_sensitive),
+                ("regex", &NSNumber::new_bool(regex)),
+            ],
             Some(Box::new(move |result| {
                 if let Some(this) = weak.load() {
                     this.show_find_result(result);
@@ -629,8 +767,61 @@ impl ViewerController {
         );
     }
 
+    /// Starts a regular expression or AI search (STANDARD §6.5, §6.6).
+    fn start_search(&self) {
+        let mode = self.mode();
+        let query = self.find_bar().query();
+        self.stop_ai();
+        self.ivars().find_query.replace(query.clone());
+        if query.is_empty() {
+            self.ivars().searched.replace(None);
+            return self.clear_results();
+        }
+        self.ivars().searched.replace(Some((mode, query.clone())));
+        match mode {
+            Mode::Ai => self.start_ai(query),
+            Mode::RegexIgnoringCase | Mode::RegexMatchingCase => {
+                let case_sensitive = NSNumber::new_bool(mode == Mode::RegexMatchingCase);
+                self.js_find(&query, &case_sensitive, true);
+            }
+            Mode::Keyword => self.run_find(),
+        }
+    }
+
+    /// Runs the current search again, for example after the document was
+    /// reloaded (STANDARD §6.1).
+    fn repeat_search(&self) {
+        let mode = self.mode();
+        if !mode.starts_with_return() {
+            return self.run_find();
+        }
+        let query = self.find_bar().query();
+        let searched = self
+            .ivars()
+            .searched
+            .borrow()
+            .as_ref()
+            .is_some_and(|(m, q)| *m == mode && *q == query);
+        if searched {
+            self.start_search();
+        }
+    }
+
+    /// Return, ⌘G and the Previous and Next buttons (STANDARD §6.1, §6.2).
     fn step_find(&self, backwards: bool) {
-        if self.find_bar().query() != *self.ivars().find_query.borrow() {
+        let mode = self.mode();
+        let query = self.find_bar().query();
+        if mode.starts_with_return() {
+            let searched = self
+                .ivars()
+                .searched
+                .borrow()
+                .as_ref()
+                .is_some_and(|(m, q)| *m == mode && *q == query);
+            if !searched {
+                return self.start_search();
+            }
+        } else if query != *self.ivars().find_query.borrow() {
             return self.run_find();
         }
         let weak = Weak::from(self);
@@ -649,15 +840,22 @@ impl ViewerController {
     fn find_again(&self, backwards: bool) {
         if !self.find_bar().is_visible() {
             self.show_find(false);
-            self.run_find();
+            if self.mode().starts_with_return() {
+                self.step_find(backwards);
+            } else {
+                self.run_find();
+            }
         } else {
             self.step_find(backwards);
         }
     }
 
     fn show_find_result(&self, result: Option<&AnyObject>) {
-        if self.find_bar().query().is_empty() {
-            return self.find_bar().set_status("");
+        let find_bar = self.find_bar();
+        if find_bar.query().is_empty()
+            || (self.mode().starts_with_return() && self.ivars().searched.borrow().is_none())
+        {
+            return find_bar.set_status("", None);
         }
         let Some(state) = result.and_then(|r| r.downcast_ref::<NSDictionary>()) else {
             return;
@@ -669,6 +867,13 @@ impl ViewerController {
                 .map(|n| n.integerValue())
                 .unwrap_or_default()
         };
+        if field("invalid") != 0 {
+            return find_bar.set_status("Invalid pattern", None);
+        }
+        if let Some(search) = self.ivars().ai.borrow().as_ref() {
+            let (done, total) = search.progress();
+            return find_bar.set_status(&ai_search::searching_status(done, total), None);
+        }
         let (count, index, capped) = (field("count"), field("index"), field("capped") != 0);
         let status = match count {
             0 => "Not found".to_owned(),
@@ -679,7 +884,117 @@ impl ViewerController {
                 if capped { "+" } else { "" }
             ),
         };
-        self.find_bar().set_status(&status);
+        find_bar.set_status(&status, None);
+    }
+
+    // --- AI search (STANDARD §6.6) ------------------------------------------
+
+    fn start_ai(&self, query: String) {
+        let generation = self.ivars().ai_generation.get();
+        self.find_bar().set_status("Searching…", None);
+        let weak = Weak::from(self);
+        self.call_js(
+            "return JSON.stringify(smv.aiBlocks(query));",
+            &[("query", &ns(&query))],
+            Some(Box::new(move |result| {
+                let Some(this) = weak.load() else {
+                    return;
+                };
+                if this.ivars().ai_generation.get() != generation {
+                    return;
+                }
+                let blocks: Vec<Block> = string_value(result)
+                    .and_then(|json| serde_json::from_str(&json).ok())
+                    .unwrap_or_default();
+                match ai_search::Search::new(&settings_store::current(), &query, &blocks) {
+                    Ok(search) => {
+                        this.ivars().ai.replace(Some(search));
+                        this.send_next_batch();
+                    }
+                    Err(reason) => this.ai_unavailable(&reason),
+                }
+            })),
+        );
+    }
+
+    fn send_next_batch(&self) {
+        let generation = self.ivars().ai_generation.get();
+        let weak = Weak::from(self);
+        let sent = match self.ivars().ai.borrow_mut().as_mut() {
+            Some(search) => search.send_next(move |result| {
+                if let Some(this) = weak.load() {
+                    this.batch_finished(generation, result);
+                }
+            }),
+            None => return,
+        };
+        match sent {
+            Ok(true) => self.show_ai_results(),
+            Ok(false) => self.finish_ai(),
+            Err(reason) => self.ai_unavailable(&reason),
+        }
+    }
+
+    fn batch_finished(&self, generation: u64, result: BatchResult) {
+        if self.ivars().ai_generation.get() != generation {
+            return;
+        }
+        let progress = match self.ivars().ai.borrow_mut().as_mut() {
+            Some(search) => search.record(result),
+            None => return,
+        };
+        match progress {
+            Progress::Searching => self.send_next_batch(),
+            Progress::Finished => self.finish_ai(),
+            Progress::Unavailable(reason) => self.ai_unavailable(&reason),
+        }
+    }
+
+    /// Highlights the blocks chosen so far.
+    fn show_ai_results(&self) {
+        let chosen = match self.ivars().ai.borrow().as_ref() {
+            Some(search) => search.chosen(),
+            None => return,
+        };
+        self.show_blocks(&chosen);
+    }
+
+    fn finish_ai(&self) {
+        let Some(search) = self.ivars().ai.take() else {
+            return;
+        };
+        let chosen = search.chosen();
+        drop(search);
+        self.show_blocks(&chosen);
+    }
+
+    fn show_blocks(&self, chosen: &[usize]) {
+        let indices = serde_json::to_string(chosen).expect("numbers are serializable");
+        let weak = Weak::from(self);
+        self.call_js(
+            "return smv.showBlocks(JSON.parse(indices));",
+            &[("indices", &ns(&indices))],
+            Some(Box::new(move |result| {
+                if let Some(this) = weak.load() {
+                    this.show_find_result(result);
+                }
+            })),
+        );
+    }
+
+    /// AI search cannot be used: nothing is highlighted and the counter
+    /// tells why when pointed at.
+    fn ai_unavailable(&self, reason: &str) {
+        self.stop_ai();
+        self.call_js("return smv.clear();", &[], None);
+        self.find_bar().set_status("AI unavailable", Some(reason));
+    }
+
+    /// Stops the AI search of this window, if one runs.
+    fn stop_ai(&self) {
+        let ivars = self.ivars();
+        ivars.ai_generation.set(ivars.ai_generation.get() + 1);
+        drop(ivars.ai.take());
     }
 
     // --- Printing (STANDARD §4.5) -------------------------------------------

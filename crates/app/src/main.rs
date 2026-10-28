@@ -4,8 +4,11 @@
 //! objc2 bindings. Each Markdown file is an `NSDocument` shown in its own
 //! window with a `WKWebView` (see doc/ARCHITECTURE.md).
 
+mod afm;
+mod ai_search;
 mod app_delegate;
 mod document;
+mod external_llm;
 mod find_bar;
 mod fonts;
 mod help;

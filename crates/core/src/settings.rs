@@ -1,4 +1,4 @@
-//! User settings and their rules (STANDARD §4.5, §5, §7, §8 and §9).
+//! User settings and their rules (STANDARD §4.5, §5, §6.6, §7, §8 and §9).
 
 use std::fmt;
 
@@ -34,6 +34,23 @@ pub const ZOOM_LEVELS: [f64; 13] = [
     0.5, 0.67, 0.75, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0, 2.5, 3.0,
 ];
 
+/// Range and default of the maximum tokens of an external LLM (STANDARD §9.1).
+pub const MAX_TOKENS_MIN: u32 = 1024;
+pub const MAX_TOKENS_MAX: u32 = 2_000_000;
+pub const MAX_TOKENS_DEFAULT: u32 = 32 * 1024;
+
+/// Steps of the Max tokens slider: 8K to 1M with K = 1,024.
+pub const MAX_TOKENS_STEPS: [u32; 8] = [
+    8 * 1024,
+    16 * 1024,
+    32 * 1024,
+    64 * 1024,
+    128 * 1024,
+    256 * 1024,
+    512 * 1024,
+    1024 * 1024,
+];
+
 /// All persisted user settings.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -52,6 +69,10 @@ pub struct Settings {
     pub fixed_margin: f64,
     /// Page zoom factor shared by all windows.
     pub zoom: f64,
+    /// Model used by AI search (STANDARD §6.6).
+    pub ai_model: AiModel,
+    /// Settings of an external LLM, used when [`AiModel::External`] is chosen.
+    pub external_llm: ExternalLlm,
 }
 
 impl Default for Settings {
@@ -65,8 +86,53 @@ impl Default for Settings {
             margin_mode: MarginMode::Automatic,
             fixed_margin: FIXED_MARGIN_DEFAULT,
             zoom: 1.0,
+            ai_model: AiModel::OnDevice,
+            external_llm: ExternalLlm::default(),
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum AiModel {
+    /// Apple Foundation Model on this Mac.
+    #[default]
+    OnDevice,
+    /// A server with the OpenAI-compatible Chat Completions API.
+    External,
+}
+
+/// An external LLM (STANDARD §6.6, §9.1). Everything is empty at first.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct ExternalLlm {
+    /// Full address of the Chat Completions endpoint.
+    pub url: String,
+    pub model: String,
+    pub options: Vec<ModelOption>,
+    pub api_key: String,
+    /// Largest number of tokens the model reads at once.
+    pub max_tokens: u32,
+}
+
+impl Default for ExternalLlm {
+    fn default() -> Self {
+        Self {
+            url: String::new(),
+            model: String::new(),
+            options: Vec::new(),
+            api_key: String::new(),
+            max_tokens: MAX_TOKENS_DEFAULT,
+        }
+    }
+}
+
+/// A key and a value added to the request body of an external LLM.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ModelOption {
+    pub key: String,
+    pub value: String,
 }
 
 /// A named combination of fonts and text metrics.
@@ -199,6 +265,11 @@ impl Settings {
             ZOOM_LEVELS[ZOOM_LEVELS.len() - 1],
             1.0,
         );
+        let llm = &mut self.external_llm;
+        for text in [&mut llm.url, &mut llm.model, &mut llm.api_key] {
+            *text = text.trim().to_owned();
+        }
+        llm.max_tokens = llm.max_tokens.clamp(MAX_TOKENS_MIN, MAX_TOKENS_MAX);
         self
     }
 
@@ -568,6 +639,58 @@ mod tests {
         assert!(!settings.can_zoom_in());
         settings.zoom_in();
         assert_eq!(settings.zoom, 3.0);
+    }
+
+    #[test]
+    fn ai_settings_default_to_the_model_on_this_mac() {
+        let settings = Settings::default();
+        assert_eq!(settings.ai_model, AiModel::OnDevice);
+        let llm = &settings.external_llm;
+        assert!(llm.url.is_empty() && llm.model.is_empty() && llm.api_key.is_empty());
+        assert!(llm.options.is_empty());
+        assert_eq!(llm.max_tokens, 32 * 1024);
+        // Settings saved before AI search existed.
+        let old = Settings::from_json(r#"{"zoom": 1.5}"#);
+        assert_eq!(old.ai_model, AiModel::OnDevice);
+        assert_eq!(old.external_llm, ExternalLlm::default());
+    }
+
+    #[test]
+    fn ai_settings_round_trip_and_normalization() {
+        let settings = Settings {
+            ai_model: AiModel::External,
+            external_llm: ExternalLlm {
+                url: " http://localhost:11434/v1/chat/completions ".into(),
+                model: "llama3".into(),
+                options: vec![ModelOption {
+                    key: "temperature".into(),
+                    value: "0".into(),
+                }],
+                api_key: " key\n".into(),
+                max_tokens: 10,
+            },
+            ..Settings::default()
+        }
+        .normalized();
+        assert_eq!(
+            settings.external_llm.url,
+            "http://localhost:11434/v1/chat/completions"
+        );
+        assert_eq!(settings.external_llm.api_key, "key");
+        assert_eq!(settings.external_llm.max_tokens, MAX_TOKENS_MIN);
+        assert_eq!(Settings::from_json(&settings.to_json()), settings);
+        assert!(settings.to_json().contains("\"aiModel\":\"external\""));
+
+        let mut huge = settings.clone();
+        huge.external_llm.max_tokens = u32::MAX;
+        assert_eq!(huge.normalized().external_llm.max_tokens, MAX_TOKENS_MAX);
+    }
+
+    #[test]
+    fn max_tokens_steps() {
+        assert_eq!(MAX_TOKENS_STEPS[0], 8192);
+        assert_eq!(MAX_TOKENS_STEPS[7], 1_048_576);
+        assert!(MAX_TOKENS_STEPS.contains(&MAX_TOKENS_DEFAULT));
     }
 
     #[test]
