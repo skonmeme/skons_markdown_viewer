@@ -62,6 +62,8 @@ Choose **skon's Markdown Viewer > Settings…** (⌘,). Changes apply to all win
 
 All settings are in one list. Click **Fonts**, **Colors**, **Margins** or **AI** in the sidebar to go to that part, or type in the search field of the sidebar to see only the settings that contain the text.
 
+When the window is narrower than 700 points, the sidebar shows only icons; point at an icon to see its name. Click the magnifying glass to widen the sidebar over the list and type in its search field. Choosing an item, pressing Esc or clicking outside the sidebar makes it narrow again. The search text stays and keeps filtering the list; meanwhile the magnifying glass is shown in the accent color.
+
 - **Fonts**: a font set combines a Latin font, a Korean font, a monospaced font for code, a font size and a line height. Korean text (Hangul) uses the Korean font and everything else the Latin font. The Default set cannot be changed: click **+** to make an editable copy, **−** to delete a set and **Rename…** to rename it.
 - **Colors**: **Automatic** follows the Light or Dark appearance of macOS; **Custom** uses the text and background colors you choose.
 - **Margins**: **Automatic**, or **Fixed** with a margin from 0 to 480 points.
